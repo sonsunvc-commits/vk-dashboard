@@ -492,41 +492,44 @@ function applyCorrections(data) {
 
 // ── Init ──
 async function init() {
-  if (API_URL) {
-    setStatus('loading', 'Загрузка...');
-    try {
-      const res = await fetch(API_URL, { redirect: 'follow', mode: 'cors' });
-      const json = await res.json();
-      allData = applyCorrections(json.data);
-      setStatus('ok', 'Данные из таблицы ✓');
-      document.getElementById('setup-banner').style.display = 'none';
-      document.getElementById('cors-tip').style.display = 'none';
-      document.getElementById('paste-banner').style.display = 'none';
-      buildSidebar(); render(); return;
-    } catch(e) { console.log('fetch failed:', e); }
-    try {
-      const json = await loadViaJsonp(API_URL);
-      allData = applyCorrections(json.data || []);
-      setStatus('ok', 'Данные из таблицы ✓');
-      document.getElementById('setup-banner').style.display = 'none';
-      document.getElementById('cors-tip').style.display = 'none';
-      document.getElementById('paste-banner').style.display = 'none';
-      buildSidebar(); render(); return;
-    } catch(e2) {}
-    // Оба метода не сработали — показываем форму вставки
-    setStatus('err', 'Нажмите "Загрузить данные"');
-    document.getElementById('cors-tip').style.display = 'none';
-    document.getElementById('setup-banner').style.display = 'none';
-    document.getElementById('paste-banner').style.display = 'block';
-    allData = applyCorrections(parseBuiltinData());
-    buildSidebar();
-    render();
-  } else {
+  if (!API_URL) {
     allData = applyCorrections(parseBuiltinData());
     setStatus('ok', 'Демо-данные');
-    buildSidebar();
-    render();
+    buildSidebar(); render(); return;
   }
+
+  setStatus('loading', 'Загрузка...');
+
+  // Попытка 1: fetch
+  try {
+    const res = await fetch(API_URL, { redirect: 'follow', mode: 'cors' });
+    const json = await res.json();
+    allData = applyCorrections(json.data);
+    setStatus('ok', 'Данные из таблицы ✓');
+    ['setup-banner','cors-tip','paste-banner'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+    buildSidebar(); render(); return;
+  } catch(e) { console.log('fetch failed:', e); }
+
+  // Попытка 2: JSONP
+  try {
+    const json = await loadViaJsonp(API_URL);
+    allData = applyCorrections(json.data || []);
+    setStatus('ok', 'Данные из таблицы ✓');
+    ['setup-banner','cors-tip','paste-banner'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+    buildSidebar(); render(); return;
+  } catch(e2) { console.log('jsonp failed:', e2); }
+
+  // Оба метода не сработали
+  setStatus('err', 'Нажмите "Загрузить данные"');
+  document.getElementById('setup-banner').style.display = 'none';
+  document.getElementById('cors-tip').style.display = 'none';
+  document.getElementById('paste-banner').style.display = 'block';
+  allData = applyCorrections(parseBuiltinData());
+  buildSidebar(); render();
 }
 
 function loadFromPaste() {
