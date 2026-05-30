@@ -241,21 +241,17 @@ table.pivot.compact td:first-child{font-size:10px;min-width:110px}
   </div>
 
 
-  <!-- Videos tables -->
+  <!-- Videos table with toggle -->
   <div class="card" style="margin-bottom:10px">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-      <div>
-        <div class="card-title" style="margin-bottom:10px">Клипы — последние 10 дней (по дням)</div>
-        <div style="overflow-x:auto">
-          <table class="pivot" id="videos-daily" style="font-size:10px"></table>
-        </div>
+    <div class="card-title">
+      Клипы по паблику и периоду
+      <div style="display:flex;gap:6px">
+        <button class="pivot-mode-btn active" id="vbtn-daily" onclick="setVideoMode('daily')">10 дней</button>
+        <button class="pivot-mode-btn" id="vbtn-weekly" onclick="setVideoMode('weekly')">5 недель</button>
       </div>
-      <div>
-        <div class="card-title" style="margin-bottom:10px">Клипы — последние 5 недель</div>
-        <div style="overflow-x:auto">
-          <table class="pivot" id="videos-weekly" style="font-size:10px"></table>
-        </div>
-      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="pivot compact" id="videos-table"></table>
     </div>
   </div>
 
@@ -372,11 +368,13 @@ function aggByPub(dates) {
 }
 
 function aggTotal(dates) {
-  let reach=0, pdp=0, likes=0, comments=0, shares=0, visits=0, videos=0, pdpGrowth=0;
-  const pubs = new Set();
-  allData.filter(r => dates.includes(r.date) && (currentPub === 'all' || r.pub === currentPub)).forEach(r => {
+  let reach=0, likes=0, comments=0, shares=0, visits=0, videos=0, pdpGrowth=0;
+  // pdp: sum of last known value per pub within period
+  const lastPdpPerPub = {};
+  const rows = allData.filter(r => dates.includes(r.date) && (currentPub === 'all' || r.pub === currentPub));
+  rows.forEach(r => {
     reach += r.reach || 0;
-    if (r.pdp !== null) { pdp = Math.max(pdp, r.pdp || 0); pubs.add(r.pub); }
+    if (r.pdp !== null && r.pdp !== undefined) lastPdpPerPub[r.pub] = r.pdp;
     likes += r.likes || 0;
     comments += r.comments || 0;
     shares += r.shares || 0;
@@ -384,6 +382,7 @@ function aggTotal(dates) {
     videos += r.videos || 0;
     pdpGrowth += r.pdpGrowth || 0;
   });
+  const pdp = Object.values(lastPdpPerPub).reduce((a,b)=>a+b,0);
   const er = reach > 0 ? ((likes+comments+shares)/reach*100) : 0;
   return {reach, pdp, likes, comments, shares, visits, videos, pdpGrowth, er};
 }
@@ -408,6 +407,63 @@ function getVideosByPubAndWeek(dates) {
     map[r.pub][wk] = (map[r.pub][wk]||0) + (r.videos||0);
   });
   return {map, pubs: [...allPubs].filter(Boolean), weeks: [...allWeeks]};
+}
+
+let videoMode = 'daily';
+function setVideoMode(mode) {
+  videoMode = mode;
+  document.getElementById('vbtn-daily').classList.toggle('active', mode==='daily');
+  document.getElementById('vbtn-weekly').classList.toggle('active', mode==='weekly');
+  renderVideos();
+}
+
+function renderVideos() {
+  const latest = getLatestDate();
+  if (!latest) return;
+  const allDts = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  if (videoMode === 'daily') {
+    const last10 = getDatesBefore(latest, 10).filter(d => d < todayStr);
+    const shortDates = last10.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+    const data = allData.filter(r => last10.includes(r.date) && r.pub && r.videos > 0 && (currentPub==='all'||r.pub===currentPub));
+    const pubs = [...new Set(data.map(r=>r.pub))].filter(Boolean);
+    const map = {};
+    data.forEach(r => { if(!map[r.pub])map[r.pub]={}; map[r.pub][r.date]=(map[r.pub][r.date]||0)+(r.videos||0); });
+    const totals = {};
+    last10.forEach((d,i) => { totals[shortDates[i]] = pubs.reduce((s,p)=>s+(map[p]?.[d]||0),0); });
+    renderVideosPivot('videos-table', shortDates, 'Паблик',
+      (pub, col) => { const d=last10[shortDates.indexOf(col)]; return map[pub]?.[d]||0; },
+      pubs, totals
+    );
+  } else {
+    const last5WeeksDates = allDts.filter(d => {
+      const pd=parseDate(d); if(!pd) return false;
+      const latestPd=parseDate(latest);
+      return (latestPd-pd)/(1000*60*60*24) <= 34 && d < todayStr;
+    });
+    const data = allData.filter(r => last5WeeksDates.includes(r.date) && r.pub && r.videos > 0 && (currentPub==='all'||r.pub===currentPub));
+    const pubs = [...new Set(data.map(r=>r.pub))].filter(Boolean);
+    const weekMap = {};
+    const allWeeks = new Set();
+    data.forEach(r => {
+      const wk=getWeekKey(r.date); if(!wk) return;
+      allWeeks.add(wk);
+      if(!weekMap[r.pub])weekMap[r.pub]={};
+      weekMap[r.pub][wk]=(weekMap[r.pub][wk]||0)+(r.videos||0);
+    });
+    const sortedWeeks = [...allWeeks].sort((a,b)=>{
+      const getD=s=>{const p=s.split('–')[0].split('.');return new Date(2026,+p[1]-1,+p[0]);};
+      return getD(a)-getD(b);
+    });
+    const totals = {};
+    sortedWeeks.forEach(wk => { totals[wk]=pubs.reduce((s,p)=>s+(weekMap[p]?.[wk]||0),0); });
+    renderVideosPivot('videos-table', sortedWeeks, 'Паблик',
+      (pub,wk) => weekMap[pub]?.[wk]||0,
+      pubs, totals
+    );
+  }
 }
 
 function renderVideosPivot(tableId, cols, colLabel, getVal, pubs, totals) {
@@ -676,53 +732,8 @@ function render() {
   // Pivot
   renderPivot();
 
-  // Videos daily (last 10 days)
-  {
-    const dates = last10;
-    const shortDates = dates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
-    const dateMap = {}; dates.forEach((d,i) => dateMap[d] = shortDates[i]);
-    const data = allData.filter(r => dates.includes(r.date) && r.pub && r.videos > 0 && (currentPub==='all'||r.pub===currentPub));
-    const pubs = [...new Set(data.map(r=>r.pub))].filter(Boolean);
-    const map = {};
-    data.forEach(r => { if(!map[r.pub])map[r.pub]={}; map[r.pub][r.date]=(map[r.pub][r.date]||0)+(r.videos||0); });
-    const totals = {}; dates.forEach(d => { totals[shortDates[dates.indexOf(d)]] = pubs.reduce((s,p)=>s+(map[p]?.[d]||0),0); });
-    renderVideosPivot('videos-daily', shortDates, 'Паблик',
-      (pub, col) => { const d = dates[shortDates.indexOf(col)]; return map[pub]?.[d]||0; },
-      pubs, totals
-    );
-  }
-
-  // Videos weekly (last 5 weeks)
-  {
-    const allDts = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
-    // Get last 5 weeks of dates
-    const last5WeeksDates = allDts.filter(d => {
-      const pd = parseDate(d); if(!pd) return false;
-      const latestPd = parseDate(latest);
-      const diff = (latestPd - pd) / (1000*60*60*24);
-      return diff <= 34;
-    });
-    const data = allData.filter(r => last5WeeksDates.includes(r.date) && r.pub && r.videos > 0 && (currentPub==='all'||r.pub===currentPub));
-    const pubs = [...new Set(data.map(r=>r.pub))].filter(Boolean);
-    const weekMap = {};
-    const allWeeks = new Set();
-    data.forEach(r => {
-      const wk = getWeekKey(r.date); if(!wk) return;
-      allWeeks.add(wk);
-      if(!weekMap[r.pub])weekMap[r.pub]={};
-      weekMap[r.pub][wk]=(weekMap[r.pub][wk]||0)+(r.videos||0);
-    });
-    const sortedWeeks = [...allWeeks].sort((a,b)=>{
-      const getD=s=>{const p=s.split('–')[0].split('.');return new Date(2026,+p[1]-1,+p[0]);};
-      return getD(a)-getD(b);
-    });
-    const totals = {};
-    sortedWeeks.forEach(wk => { totals[wk] = pubs.reduce((s,p)=>s+(weekMap[p]?.[wk]||0),0); });
-    renderVideosPivot('videos-weekly', sortedWeeks, 'Паблик',
-      (pub, wk) => weekMap[pub]?.[wk]||0,
-      pubs, totals
-    );
-  }
+  // Videos table
+  renderVideos();
 }
 
 // ── Sidebar ──
