@@ -200,6 +200,23 @@ table.pivot.compact td:first-child{font-size:10px;min-width:110px}
     </div>
   </div>
 
+  <!-- Multi-line comparison chart -->
+  <div class="card" style="margin-bottom:10px">
+    <div class="card-title">
+      Охваты по пабликам — последние 10 дней
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="compare-top" onchange="renderCompareChart()" checked style="cursor:pointer">
+          только топ-8
+        </label>
+      </div>
+    </div>
+    <div style="position:relative;width:100%;height:280px">
+      <canvas id="compareChart"></canvas>
+    </div>
+    <div id="compare-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+  </div>
+
   <!-- Two tables side by side -->
   <div class="charts-row2" style="margin-bottom:10px">
     <div class="card">
@@ -384,7 +401,17 @@ function aggTotal(dates) {
   });
   const pdp = Object.values(lastPdpPerPub).reduce((a,b)=>a+b,0);
   const er = reach > 0 ? ((likes+comments+shares)/reach*100) : 0;
-  return {reach, pdp, likes, comments, shares, visits, videos, pdpGrowth, er};
+
+  // Top growing pub by pdpGrowth
+  const growthPerPub = {};
+  rows.forEach(r => {
+    if (!growthPerPub[r.pub]) growthPerPub[r.pub] = 0;
+    growthPerPub[r.pub] += r.pdpGrowth || 0;
+  });
+  const topEntry = Object.entries(growthPerPub).sort((a,b)=>b[1]-a[1])[0];
+  const topGrowthPub = topEntry && topEntry[1] > 0 ? {name: topEntry[0], val: topEntry[1]} : {name:'—', val:0};
+
+  return {reach, pdp, likes, comments, shares, visits, videos, pdpGrowth, er, topGrowthPub};
 }
 
 // Videos pivot - by pub and date/week
@@ -503,20 +530,29 @@ function renderVideosPivot(tableId, cols, colLabel, getVal, pubs, totals) {
 function renderKpiRow(elId, curr, prev) {
   const el = document.getElementById(elId);
   if (!el) return;
+  // Find top growing pub for this period
+  const topPub = curr.topGrowthPub || {name:'—', val:0};
+
   const metrics = [
     {label:'Охват', val:curr.reach, prev:prev?.reach, color:'#7c3aed', reach:true},
-    {label:'Подписчики', val:curr.pdp, prev:prev?.pdp, color:'#06b6d4'},
     {label:'Прирост пдп', val:curr.pdpGrowth, prev:prev?.pdpGrowth, color:'#22c55e'},
     {label:'Ср. ER', val:curr.er, prev:prev?.er, color:'#f59e0b', pct:true},
     {label:'Клипов', val:curr.videos, prev:prev?.videos, color:'#ec4899'},
   ];
+
   el.innerHTML = metrics.map(m => `
     <div class="kpi" style="--kpi-color:${m.color}">
       <div class="kpi-label">${m.label}</div>
       <div class="kpi-value">${m.pct ? curr.er.toFixed(2)+'%' : m.reach ? fmtReach(m.val) : fmtNum(m.val)}</div>
       ${prev ? `<div class="kpi-delta">${fmtDelta(m.val, m.prev)}</div>` : ''}
     </div>
-  `).join('');
+  `).join('') + `
+    <div class="kpi" style="--kpi-color:#a78bfa">
+      <div class="kpi-label">🏆 Топ прирост</div>
+      <div class="kpi-value" style="font-size:14px;line-height:1.3">${topPub.name}</div>
+      <div class="kpi-delta up">+${fmtNum(topPub.val)} подп.</div>
+    </div>
+  `;
 }
 
 // ── Charts ──
@@ -732,6 +768,9 @@ function render() {
   // Pivot
   renderPivot();
 
+  // Compare chart
+  renderCompareChart();
+
   // Videos table
   renderVideos();
 }
@@ -800,6 +839,87 @@ function loadFromPaste() {
     document.getElementById('paste-banner').style.display='none';
     buildSidebar(); render();
   } catch(e) { alert('Ошибка: вставьте корректный JSON'); }
+}
+
+// ── Compare chart ──
+const COLORS = [
+  '#7c3aed','#06b6d4','#ec4899','#f59e0b','#22c55e',
+  '#a78bfa','#38bdf8','#fb923c','#4ade80','#f472b6',
+  '#facc15','#34d399','#60a5fa','#c084fc','#f87171',
+  '#fbbf24','#86efac','#93c5fd','#e879f9','#fca5a5'
+];
+
+function renderCompareChart() {
+  destroyChart('compare');
+  const latest = getLatestDate();
+  if (!latest) return;
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const last10 = getDatesBefore(latest, 10).filter(d => d < todayStr);
+  const labels = last10.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+
+  // Get all pubs
+  let pubs = [...new Set(allData.map(r=>r.pub))].filter(Boolean);
+  if (currentPub !== 'all') pubs = pubs.filter(p => p === currentPub);
+
+  // Calc total reach per pub for sorting
+  const pubTotals = {};
+  pubs.forEach(pub => {
+    pubTotals[pub] = last10.reduce((s,d) => {
+      return s + allData.filter(r=>r.date===d&&r.pub===pub).reduce((a,r)=>a+(r.reach||0),0);
+    }, 0);
+  });
+  pubs = pubs.sort((a,b) => pubTotals[b]-pubTotals[a]);
+
+  const onlyTop = document.getElementById('compare-top')?.checked;
+  if (onlyTop) pubs = pubs.slice(0, 8);
+
+  const datasets = pubs.map((pub, i) => {
+    const color = COLORS[i % COLORS.length];
+    const data = last10.map(d =>
+      allData.filter(r=>r.date===d&&r.pub===pub).reduce((s,r)=>s+(r.reach||0),0)
+    );
+    return {
+      label: pub, data, borderColor: color,
+      backgroundColor: 'transparent',
+      tension: 0.4, pointRadius: 3,
+      pointBackgroundColor: color,
+      borderWidth: 2, pointHoverRadius: 5
+    };
+  });
+
+  charts['compare'] = new Chart(document.getElementById('compareChart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${fmtNum(ctx.raw)}`
+          }
+        }
+      },
+      scales: {
+        x: { grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} },
+        y: { grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10},callback:v=>fmtReach(v)}, border:{color:'transparent'} }
+      }
+    }
+  });
+
+  // Custom legend
+  const legend = document.getElementById('compare-legend');
+  if (legend) {
+    legend.innerHTML = pubs.map((pub,i) => `
+      <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:rgba(255,255,255,.7)">
+        <span style="width:20px;height:2px;background:${COLORS[i%COLORS.length]};border-radius:2px;display:inline-block"></span>
+        ${pub}
+      </span>
+    `).join('');
+  }
 }
 
 // ── Init ──
