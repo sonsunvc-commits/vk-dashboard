@@ -552,9 +552,13 @@ function setStatus(type, text) {
 
 // ── Sidebar пабликов ──
 function buildSidebar() {
-  const pubs = [...new Set(allData.map(r => r.pub))].sort();
+  // Полная очистка перед построением
   const sel = document.getElementById('pub-select');
   const sidebar = document.getElementById('sidebar-pubs');
+  sel.innerHTML = '<option value="all">Все паблики</option>';
+  sidebar.innerHTML = '';
+
+  const pubs = [...new Set(allData.map(r => r.pub))].filter(Boolean).sort();
 
   pubs.forEach(p => {
     const opt = document.createElement('option');
@@ -811,6 +815,9 @@ function reloadData() {
   document.getElementById('pub-select').innerHTML = '<option value="all">Все паблики</option>';
   Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
   charts = {};
+  // Сброс селекта
+  const sel = document.getElementById('pub-select');
+  sel.value = 'all';
   init();
 }
 
