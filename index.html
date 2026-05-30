@@ -189,6 +189,16 @@
   .banner-close { background: none; border: none; color: rgba(200,190,255,0.5); cursor: pointer; font-size: 20px; line-height: 1; padding: 0; flex-shrink: 0; }
   .banner-close:hover { color: #c4b5fd; }
 
+
+  .pivot-table th { color: var(--muted); font-weight:400; padding:5px 10px; text-align:right; border-bottom:1px solid var(--border); background:var(--bg2); position:sticky; top:0; }
+  .pivot-table th:first-child { text-align:left; min-width:140px; position:sticky; left:0; background:var(--bg2); z-index:2; }
+  .pivot-table td { padding:5px 10px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.03); color:var(--text); }
+  .pivot-table td:first-child { text-align:left; font-size:11px; color:var(--text); position:sticky; left:0; background:var(--bg2); font-weight:500; }
+  .pivot-table tr:hover td { background:rgba(255,255,255,0.03); }
+  .pivot-table .total-row td { color:var(--accent2); font-weight:500; border-top:1px solid rgba(255,255,255,0.1); }
+  .pivot-cell-high { color:#22c55e !important; }
+  .pivot-cell-low { color:var(--muted) !important; }
+
   /* ── Responsive ── */
   @media (max-width: 900px) {
     .sidebar { display: none; }
@@ -314,6 +324,21 @@
           <span class="leg-item"><span class="leg-dot" style="background:#06b6d4;height:8px;width:8px;border-radius:50%"></span>Комменты</span>
           <span class="leg-item"><span class="leg-dot" style="background:#ec4899;height:8px;width:8px;border-radius:50%"></span>Репосты</span>
         </div>
+      </div>
+    </div>
+
+
+    <!-- Pivot table: паблики × периоды -->
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title">
+        Охват по паблику и периоду
+        <div style="display:flex;gap:6px">
+          <button class="pivot-mode-btn active" onclick="setPivotMode('week',this)" style="font-size:10px;padding:4px 10px;border-radius:6px;border:1px solid rgba(124,58,237,0.4);background:rgba(124,58,237,0.2);color:#c4b5fd;cursor:pointer">Недели</button>
+          <button class="pivot-mode-btn" onclick="setPivotMode('month',this)" style="font-size:10px;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);cursor:pointer">Месяцы</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="pivot-table" style="width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap"></table>
       </div>
     </div>
 
@@ -464,6 +489,132 @@ let allData = [];
 let currentPub = 'all';
 let currentPeriod = 'day';
 let charts = {};
+
+
+// ── Pivot table ──
+let pivotMode = 'week';
+
+function setPivotMode(mode, btn) {
+  pivotMode = mode;
+  document.querySelectorAll('.pivot-mode-btn').forEach(b => {
+    b.style.background = 'transparent';
+    b.style.borderColor = 'rgba(255,255,255,0.1)';
+    b.style.color = 'var(--muted)';
+  });
+  btn.style.background = 'rgba(124,58,237,0.2)';
+  btn.style.borderColor = 'rgba(124,58,237,0.4)';
+  btn.style.color = '#c4b5fd';
+  renderPivot();
+}
+
+function getWeekKey(dateStr) {
+  const d = new Date(dateStr);
+  const day = d.getDay() || 7;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - day + 1);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  const fmt = d => d.toLocaleDateString('ru', {day:'2-digit',month:'2-digit'});
+  return fmt(mon) + '–' + fmt(sun);
+}
+
+function getMonthKey(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('ru', {month:'short', year:'2-digit'});
+}
+
+function renderPivot() {
+  const table = document.getElementById('pivot-table');
+  if (!table) return;
+
+  // Get all pubs (filtered or all)
+  let data = allData.filter(r => r.reach !== null && r.pub);
+  if (currentPub !== 'all') data = data.filter(r => r.pub === currentPub);
+
+  // Build period keys
+  const getKey = pivotMode === 'week' ? getWeekKey : getMonthKey;
+  const periodMap = {}; // pub -> period -> reach
+  const allPeriods = new Set();
+  const allPubs = new Set();
+
+  data.forEach(r => {
+    const key = getKey(r.date);
+    if (!key) return;
+    allPeriods.add(key);
+    allPubs.add(r.pub);
+    if (!periodMap[r.pub]) periodMap[r.pub] = {};
+    periodMap[r.pub][key] = (periodMap[r.pub][key] || 0) + (r.reach || 0);
+  });
+
+  // Sort periods chronologically
+  const sortedPeriods = [...allPeriods].sort((a, b) => {
+    const getDate = s => {
+      const parts = s.split('–')[0].split('.');
+      if (parts.length === 2) return new Date(2026, parseInt(parts[1])-1, parseInt(parts[0]));
+      return new Date(s);
+    };
+    return getDate(a) - getDate(b);
+  });
+
+  // Show last 12 periods
+  const periods = sortedPeriods.slice(-12);
+
+  // Sort pubs by total reach
+  const sortedPubs = [...allPubs].filter(p => p).sort((a,b) => {
+    const totA = periods.reduce((s,p) => s + (periodMap[a]?.[p] || 0), 0);
+    const totB = periods.reduce((s,p) => s + (periodMap[b]?.[p] || 0), 0);
+    return totB - totA;
+  });
+
+  // Find max for color scaling
+  let maxVal = 0;
+  sortedPubs.forEach(pub => {
+    periods.forEach(p => {
+      const v = periodMap[pub]?.[p] || 0;
+      if (v > maxVal) maxVal = v;
+    });
+  });
+
+  // Build table HTML
+  let html = '<thead><tr class="pivot-table"><th class="pivot-table">Паблик</th>';
+  periods.forEach(p => { html += `<th class="pivot-table" style="min-width:70px">${p}</th>`; });
+  html += '<th class="pivot-table">Итого</th></tr></thead><tbody>';
+
+  // Totals row
+  const periodTotals = {};
+  periods.forEach(p => {
+    periodTotals[p] = sortedPubs.reduce((s, pub) => s + (periodMap[pub]?.[p] || 0), 0);
+  });
+  const grandTotal = Object.values(periodTotals).reduce((a,b)=>a+b,0);
+
+  html += '<tr>';
+  html += '<td class="pivot-table" style="color:var(--accent2);font-weight:600">Все паблики</td>';
+  periods.forEach(p => {
+    const v = periodTotals[p];
+    html += `<td class="pivot-table" style="color:var(--accent2);font-weight:500">${fmtNum(v)}</td>`;
+  });
+  html += `<td class="pivot-table" style="color:var(--accent2);font-weight:600">${fmtNum(grandTotal)}</td>`;
+  html += '</tr>';
+
+  sortedPubs.forEach(pub => {
+    const total = periods.reduce((s,p) => s + (periodMap[pub]?.[p] || 0), 0);
+    html += '<tr>';
+    html += `<td class="pivot-table">${pub}</td>`;
+    periods.forEach(p => {
+      const v = periodMap[pub]?.[p] || 0;
+      const pct = maxVal > 0 ? v / maxVal : 0;
+      const alpha = Math.round(pct * 0.5 * 100) / 100;
+      const color = v > 0 ? `rgba(124,58,237,${alpha + 0.05})` : 'transparent';
+      const textClass = pct > 0.6 ? 'pivot-cell-high' : pct < 0.1 && v > 0 ? 'pivot-cell-low' : '';
+      html += `<td class="pivot-table ${textClass}" style="background:${color}">${v > 0 ? fmtNum(v) : '<span style=\"color:rgba(255,255,255,0.15)\">—</span>'}</td>`;
+    });
+    html += `<td class="pivot-table" style="color:var(--muted)">${fmtNum(total)}</td>`;
+    html += '</tr>';
+  });
+
+  html += '</tbody>';
+  table.innerHTML = html;
+}
 
 // ── JSONP загрузка (обходит CORS при открытии локального файла) ──
 function loadViaJsonp(url) {
@@ -696,6 +847,7 @@ function render() {
   renderSubsChart(byDate);
   renderActChart(data);
   renderTable(byPub);
+  renderPivot();
 }
 
 function kpi(label, value, delta, color) {
