@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VK Analytics Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  /* ── Вставьте сюда URL вашего Apps Script после деплоя ── */
+  /* const API_URL = 'https://script.google.com/macros/s/YOUR_ID/exec'; */
+
+  :root {
+    --bg0: #0b0d14;
+    --bg1: #10131e;
+    --bg2: #161929;
+    --bg3: #1e2236;
+    --border: rgba(255,255,255,0.07);
+    --text: #e8eaf0;
+    --muted: #636880;
+    --accent1: #7c3aed;
+    --accent2: #06b6d4;
+    --accent3: #ec4899;
+    --accent4: #f59e0b;
+    --green: #22c55e;
+    --red: #ef4444;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg0);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  /* ── Layout ── */
+  .app { display: flex; min-height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    background: var(--bg1);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-logo {
+    padding: 0 18px 20px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .sidebar-logo span { color: var(--accent1); }
+
+  .sidebar-section { padding: 8px 18px 4px; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 8px; }
+
+  .sidebar-item {
+    padding: 8px 18px;
+    color: var(--muted);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sidebar-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .sidebar-item.active { color: var(--accent1); border-left-color: var(--accent1); background: rgba(124,58,237,0.08); }
+
+  .sidebar-footer { margin-top: auto; padding: 12px 18px; }
+  .api-status { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .status-dot.err { background: var(--red); }
+  .status-dot.loading { background: var(--accent4); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── Main ── */
+  .main { flex: 1; overflow-x: hidden; padding: 20px 22px; }
+
+  /* ── Top bar ── */
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+  .topbar-title { font-size: 18px; font-weight: 600; }
+  .topbar-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  .pub-select {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    max-width: 180px;
+  }
+
+  .period-group { display: flex; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .period-btn { padding: 6px 14px; font-size: 11px; color: var(--muted); cursor: pointer; border: none; background: transparent; transition: all 0.15s; }
+  .period-btn.active { background: var(--accent1); color: #fff; }
+
+  /* ── KPI cards ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+
+  .kpi {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--kpi-color, var(--accent1));
+  }
+  .kpi-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .kpi-value { font-size: 22px; font-weight: 600; color: var(--text); line-height: 1; }
+  .kpi-delta { font-size: 10px; margin-top: 5px; }
+  .up { color: var(--green); } .dn { color: var(--red); } .neu { color: var(--muted); }
+
+  /* ── Chart cards ── */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .charts-row-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .card-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .card-badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; background: rgba(124,58,237,0.2); color: var(--accent1); }
+
+  .chart-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+  .leg-dot { width: 8px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── Table ── */
+  .tbl-wrap { overflow-x: auto; }
+  table.ranked { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.ranked th { color: var(--muted); font-weight: 400; padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.ranked th:first-child, table.ranked th:nth-child(2) { text-align: left; }
+  table.ranked td { padding: 7px 8px; text-align: right; color: var(--text); border-bottom: 1px solid rgba(255,255,255,0.03); }
+  table.ranked td:first-child { color: var(--muted); width: 24px; }
+  table.ranked td:nth-child(2) { text-align: left; font-weight: 500; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  table.ranked tr:last-child td { border-bottom: none; }
+  table.ranked tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .er-bar-bg { background: rgba(255,255,255,0.08); border-radius: 3px; height: 4px; width: 50px; display: inline-block; vertical-align: middle; overflow: hidden; }
+  .er-bar-fill { height: 4px; border-radius: 3px; background: linear-gradient(90deg, var(--accent1), var(--accent2)); }
+
+  .badge { display: inline-block; font-size: 9px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+  .badge.up { background: rgba(34,197,94,0.15); color: var(--green); }
+  .badge.dn { background: rgba(239,68,68,0.15); color: var(--red); }
+  .badge.neu { background: rgba(255,255,255,0.06); color: var(--muted); }
+
+  /* ── Loading ── */
+  .loader { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--muted); font-size: 13px; gap: 10px; }
+  .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent1); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── API setup banner ── */
+  .setup-banner {
+    background: rgba(124,58,237,0.1);
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(200,190,255,0.9);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .setup-banner-body { flex: 1; }
+  .setup-banner strong { color: #c4b5fd; }
+  .setup-banner code { background: rgba(0,0,0,0.3); padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+  .banner-close { background: none; border: none; color: rgba(200,190,255,0.5); cursor: pointer; font-size: 20px; line-height: 1; padding: 0; flex-shrink: 0; }
+  .banner-close:hover { color: #c4b5fd; }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .charts-row, .charts-row-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">VK <span>Analytics</span></div>
+
+    <div class="sidebar-section">Обзор</div>
+    <div class="sidebar-item active" onclick="setView('overview')">📊 Все паблики</div>
+
+    <div class="sidebar-section">Паблики</div>
+    <div id="sidebar-pubs"></div>
+
+    <div class="sidebar-footer">
+      <div class="api-status" style="margin-bottom:8px">
+        <div class="status-dot loading" id="dot"></div>
+        <span id="status-text">Загрузка...</span>
+      </div>
+      <button onclick="reloadData()" style="width:100%;padding:7px;border-radius:8px;border:1px solid rgba(124,58,237,0.4);background:rgba(124,58,237,0.12);color:#c4b5fd;cursor:pointer;font-size:11px;">↺ Обновить данные</button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="page-title">Все паблики</div>
+        <div class="topbar-sub" id="page-sub">Загрузка данных...</div>
+      </div>
+      <div class="controls">
+        <select class="pub-select" id="pub-select" onchange="onPubChange(this.value)">
+          <option value="all">Все паблики</option>
+        </select>
+        <div class="period-group">
+          <button class="period-btn active" onclick="setPeriod('day', this)">День</button>
+          <button class="period-btn" onclick="setPeriod('week', this)">Неделя</button>
+          <button class="period-btn" onclick="setPeriod('month', this)">Месяц</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CORS tip -->
+    <div id="cors-tip" style="display:none;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:rgba(255,220,150,0.9);line-height:1.7;">
+      ⚡ <strong style="color:#fbbf24">Файл открыт локально</strong> — браузер блокирует запросы к API.<br>
+      Решение: <strong>перетащите index.html на <a href="https://pages.github.com" target="_blank" style="color:#f59e0b">GitHub Pages</a></strong> (бесплатно, 3 минуты) или установите расширение <strong>Live Server</strong> для VS Code.
+      <button onclick="document.getElementById('cors-tip').style.display='none'" style="float:right;background:none;border:none;color:rgba(255,220,150,0.5);cursor:pointer;font-size:16px;margin-top:-2px">×</button>
+    </div>
+
+    <!-- Banner (показывается пока нет API) -->
+    <div class="setup-banner" id="setup-banner">
+      <div class="setup-banner-body">
+        🔧 <strong>Подключение к таблице:</strong> В Google Таблице откройте <code>Расширения → Apps Script</code>, вставьте <code>Code.gs</code>, нажмите <strong>Развернуть → Веб-приложение</strong> (доступ: Все). Скопируйте URL и вставьте в <code>const API_URL = '...'</code> в файле <code>index.html</code>. После этого дашборд будет читать таблицу напрямую.
+      </div>
+      <button class="banner-close" onclick="document.getElementById('setup-banner').style.display='none'" title="Скрыть">×</button>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="loader"><div class="spinner"></div> Загрузка...</div>
+    </div>
+
+    <!-- Charts row 1 -->
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-title">Охват по дням <span class="card-badge" id="reach-badge">—</span></div>
+        <div class="chart-legend">
+          <span class="leg-item"><span class="leg-dot" style="background:#7c3aed"></span>Охват</span>
+          <span class="leg-item"><span class="leg-dot" style="background:#06b6d4;height:8px;width:8px;border-radius:50%"></span>Ролики (дни)</span>
+        </div>
+        <div style="position:relative;width:100%;height:180px">
+          <canvas id="reachChart" role="img" aria-label="Охват по дням"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Подписчики (динамика)</div>
+        <div style="position:relative;width:100%;height:200px">
+          <canvas id="subsChart" role="img" aria-label="Динамика подписчиков"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts row 2 -->
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-title">Топ пабликов по охвату</div>
+        <div class="tbl-wrap">
+          <table class="ranked" id="rank-table">
+            <thead><tr>
+              <th>#</th><th>Паблик</th><th>Подписчики</th><th>Охват</th><th>Посещений</th><th>Лайки</th><th>Репосты</th><th>ER</th><th>Оценка</th>
+            </tr></thead>
+            <tbody id="rank-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Активность</div>
+        <div style="position:relative;width:100%;height:160px">
+          <canvas id="actChart" role="img" aria-label="Активность аудитории"></canvas>
+        </div>
+        <div class="chart-legend" style="margin-top:10px">
+          <span class="leg-item"><span class="leg-dot" style="background:#7c3aed;height:8px;width:8px;border-radius:50%"></span>Лайки</span>
+          <span class="leg-item"><span class="leg-dot" style="background:#06b6d4;height:8px;width:8px;border-radius:50%"></span>Комменты</span>
+          <span class="leg-item"><span class="leg-dot" style="background:#ec4899;height:8px;width:8px;border-radius:50%"></span>Репосты</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════╗
+// ║  ЗАМЕНИТЕ эту строку на URL вашего скрипта  ║
+// ║  после деплоя в Google Apps Script           ║
+// ╚══════════════════════════════════════════════╝
+const API_URL = 'https://script.google.com/macros/s/AKfycbxd5Ko_bCwpanMQ7RN-Yx2w8HAIAcBZjVRxRrGEF6xze28zSoXfj3gEMX93a9yv-G5Eyw/exec';
+
+// ── Встроенные данные из таблицы (используются пока нет API) ──
+const RAW = `Дата\tПДП\tОхват\tРоликов\tВ канале\tПосещений\tЛайки\tкоментарии\tподелились\tER\tПаблик
+21.05.2026\t352\t967\t\t70\t14\t19\t1\t67\t9,00%\tZигZаг
+21.05.2026\t554\t822\t\t63\t16\t32\t0\t37\t8,39%\tОверлок по жизни
+21.05.2026\t389\t530\t\t76\t18\t21\t0\t19\t7,55%\tШитье по жизни
+21.05.2026\t73\t1100\t\t25\t15\t7\t0\t24\t2,82%\tНитка Ариадны
+21.05.2026\t193\t1000\t\t53\t12\t15\t1\t21\t3,70%\tНитка с иголкой | Шитье
+21.05.2026\t9590\t1200\t\t126\t21\t21\t0\t28\t4,08%\tБесплатные МК
+21.05.2026\t27\t223\t\t17\t11\t2\t0\t5\t3,14%\tСхема раскрой запорол
+21.05.2026\t20\t7\t\t5\t7\t0\t0\t0\t0,00%\tДух Швеи
+21.05.2026\t87\t1100\t\t53\t20\t11\t0\t51\t5,64%\tШвейная комната
+21.05.2026\t19\t210\t\t4\t10\t0\t0\t1\t0,48%\tСуббота у машинки
+21.05.2026\t4\t4\t\t\t7\t0\t0\t0\t0,00%\tСтрочка за строчкой
+21.05.2026\t3\t10\t\t1\t7\t1\t0\t0\t10,00%\tШорох шифона
+22.05.2026\t353\t409\t\t71\t14\t1\t0\t10\t2,69%\tZигZаг
+22.05.2026\t559\t1600\t\t68\t24\t65\t1\t47\t7,06%\tОверлок по жизни
+22.05.2026\t393\t567\t\t80\t21\t22\t0\t24\t8,11%\tШитье по жизни
+22.05.2026\t75\t837\t\t27\t17\t6\t0\t9\t1,79%\tНитка Ариадны
+22.05.2026\t194\t1000\t\t54\t16\t8\t0\t7\t1,50%\tНитка с иголкой | Шитье
+22.05.2026\t9600\t1100\t\t128\t17\t20\t0\t9\t2,64%\tБесплатные МК
+22.05.2026\t27\t94\t\t17\t14\t1\t0\t3\t4,26%\tСхема раскрой запорол
+22.05.2026\t22\t151\t\t7\t11\t1\t0\t0\t0,66%\tДух Швеи
+22.05.2026\t100\t2500\t\t66\t36\t27\t0\t137\t6,56%\tШвейная комната
+22.05.2026\t19\t28\t\t4\t10\t0\t0\t0\t0,00%\tСуббота у машинки
+22.05.2026\t5\t150\t\t\t11\t1\t0\t0\t0,67%\tСтрочка за строчкой
+22.05.2026\t3\t8\t\t1\t10\t0\t0\t0\t0,00%\tШорох шифона
+23.05.2026\t357\t410\t\t73\t23\t3\t0\t4\t1,71%\tZигZаг
+23.05.2026\t563\t1200\t\t70\t18\t60\t0\t23\t6,92%\tОверлок по жизни
+23.05.2026\t398\t578\t\t84\t13\t22\t0\t20\t7,27%\tШитье по жизни
+23.05.2026\t75\t690\t\t27\t15\t2\t0\t5\t1,01%\tНитка Ариадны
+23.05.2026\t200\t1100\t\t60\t10\t14\t0\t29\t3,91%\tНитка с иголкой | Шитье
+23.05.2026\t9601\t1000\t\t129\t20\t14\t0\t15\t2,90%\tБесплатные МК
+23.05.2026\t30\t589\t\t20\t11\t1\t0\t12\t2,21%\tСхема раскрой запорол
+23.05.2026\t22\t284\t\t7\t5\t1\t0\t9\t3,52%\tДух Швеи
+23.05.2026\t110\t1400\t\t75\t16\t41\t1\t83\t8,93%\tШвейная комната
+23.05.2026\t19\t18\t\t4\t4\t0\t0\t0\t0,00%\tСуббота у машинки
+23.05.2026\t6\t70\t\t\t4\t0\t0\t1\t1,43%\tСтрочка за строчкой
+23.05.2026\t8\t248\t\t6\t5\t7\t0\t8\t6,05%\tШорох шифона
+24.05.2026\t361\t1000\t\t75\t20\t11\t0\t42\t5,30%\tZигZаг
+24.05.2026\t563\t1000\t\t70\t14\t22\t0\t22\t4,40%\tОверлок по жизни
+24.05.2026\t411\t2200\t\t96\t28\t63\t0\t44\t4,86%\tШитье по жизни
+24.05.2026\t76\t487\t\t28\t6\t2\t0\t4\t1,23%\tНитка Ариадны
+24.05.2026\t203\t453\t\t61\t11\t13\t0\t3\t3,53%\tНитка с иголкой | Шитье
+24.05.2026\t9601\t1400\t\t130\t20\t30\t0\t12\t3,00%\tБесплатные МК
+24.05.2026\t30\t254\t\t19\t4\t0\t0\t2\t0,79%\tСхема раскрой запорол
+24.05.2026\t24\t198\t\t9\t6\t3\t0\t8\t5,56%\tДух Швеи
+24.05.2026\t114\t822\t\t78\t7\t28\t1\t34\t7,66%\tШвейная комната
+24.05.2026\t19\t139\t\t4\t4\t0\t0\t0\t0,00%\tСуббота у машинки
+24.05.2026\t6\t67\t\t\t4\t0\t0\t2\t2,99%\tСтрочка за строчкой
+24.05.2026\t19\t2100\t\t16\t22\t58\t0\t134\t9,14%\tШорох шифона
+25.05.2026\t363\t609\t\t77\t12\t12\t3\t17\t5,25%\tZигZаг
+25.05.2026\t567\t1400\t\t71\t14\t29\t0\t42\t5,07%\tОверлок по жизни
+25.05.2026\t414\t2300\t\t98\t15\t38\t0\t33\t3,09%\tШитье по жизни
+25.05.2026\t76\t324\t\t28\t5\t0\t0\t0\t0,00%\tНитка Ариадны
+25.05.2026\t210\t820\t\t67\t11\t14\t0\t20\t4,15%\tНитка с иголкой | Шитье
+25.05.2026\t9598\t1400\t\t131\t17\t15\t0\t7\t1,57%\tБесплатные МК
+25.05.2026\t30\t128\t\t19\t5\t1\t0\t0\t0,78%\tСхема раскрой запорол
+25.05.2026\t24\t125\t\t9\t5\t1\t0\t2\t2,40%\tДух Швеи
+25.05.2026\t118\t688\t\t81\t7\t15\t0\t28\t6,25%\tШвейная комната
+25.05.2026\t19\t212\t\t4\t3\t0\t0\t0\t0,00%\tСуббота у машинки
+25.05.2026\t9\t265\t\t\t6\t7\t0\t9\t6,04%\tСтрочка за строчкой
+25.05.2026\t29\t979\t\t25\t15\t19\t0\t61\t8,17%\tШорох шифона
+26.05.2026\t366\t2700\t\t80\t10\t5\t0\t13\t0,67%\tZигZаг
+26.05.2026\t569\t939\t\t73\t18\t28\t0\t28\t5,96%\tОверлок по жизни
+26.05.2026\t420\t1000\t\t104\t9\t28\t0\t32\t6,00%\tШитье по жизни
+26.05.2026\t76\t404\t\t28\t3\t0\t0\t1\t0,25%\tНитка Ариадны
+26.05.2026\t211\t942\t\t67\t5\t14\t0\t6\t2,12%\tНитка с иголкой | Шитье
+26.05.2026\t9598\t1200\t\t132\t11\t10\t0\t7\t1,42%\tБесплатные МК
+26.05.2026\t30\t190\t\t19\t2\t2\t0\t2\t2,11%\tСхема раскрой запорол
+26.05.2026\t24\t59\t\t9\t2\t0\t0\t2\t3,39%\tДух Швеи
+26.05.2026\t121\t872\t\t83\t6\t12\t0\t26\t4,36%\tШвейная комната
+26.05.2026\t19\t11\t\t4\t4\t0\t0\t0\t0,00%\tСуббота у машинки
+26.05.2026\t10\t455\t\t\t5\t15\t0\t12\t5,93%\tСтрочка за строчкой
+26.05.2026\t36\t699\t\t32\t13\t13\t0\t47\t8,58%\tШорох шифона
+27.05.2026\t378\t8700\t\t92\t37\t12\t0\t34\t0,53%\tZигZаг
+27.05.2026\t571\t463\t\t75\t7\t16\t0\t6\t4,75%\tОверлок по жизни
+27.05.2026\t428\t745\t\t112\t9\t0\t0\t9\t1,21%\tШитье по жизни
+27.05.2026\t90\t10500\t\t42\t25\t12\t2\t29\t0,41%\tНитка Ариадны
+27.05.2026\t214\t587\t\t69\t13\t7\t0\t7\t2,39%\tНитка с иголкой | Шитье
+27.05.2026\t9599\t885\t\t133\t4\t5\t0\t6\t1,24%\tБесплатные МК
+27.05.2026\t31\t518\t\t20\t5\t1\t0\t3\t0,77%\tСхема раскрой запорол
+27.05.2026\t24\t6\t\t9\t2\t0\t0\t0\t0,00%\tДух Швеи
+27.05.2026\t142\t16600\t\t103\t38\t17\t0\t38\t0,33%\tШвейная комната
+27.05.2026\t19\t58\t\t4\t2\t0\t0\t0\t0,00%\tСуббота у машинки
+27.05.2026\t11\t101\t\t\t2\t1\t0\t1\t1,98%\tСтрочка за строчкой
+27.05.2026\t36\t567\t\t31\t6\t12\t0\t21\t5,82%\tШорох шифона
+28.05.2026\t395\t13700\t\t106\t72\t21\t0\t38\t0,43%\tZигZаг
+28.05.2026\t573\t547\t\t77\t14\t18\t0\t15\t6,03%\tОверлок по жизни
+28.05.2026\t428\t892\t\t111\t19\t18\t0\t18\t4,04%\tШитье по жизни
+28.05.2026\t109\t27800\t\t57\t65\t92\t0\t113\t0,74%\tНитка Ариадны
+28.05.2026\t214\t470\t\t69\t12\t9\t0\t7\t3,40%\tНитка с иголкой | Шитье
+28.05.2026\t9598\t1000\t\t133\t26\t19\t0\t11\t3,00%\tБесплатные МК
+28.05.2026\t31\t632\t\t20\t4\t0\t0\t3\t0,47%\tСхема раскрой запорол
+28.05.2026\t26\t161\t\t11\t9\t0\t0\t1\t0,62%\tДух Швеи
+28.05.2026\t167\t18600\t\t126\t61\t27\t0\t44\t0,38%\tШвейная комната
+28.05.2026\t19\t159\t\t4\t5\t0\t0\t3\t1,89%\tСуббота у машинки
+28.05.2026\t11\t44\t\t\t17\t0\t0\t0\t0,00%\tСтрочка за строчкой
+28.05.2026\t38\t390\t\t33\t7\t10\t0\t18\t7,18%\tШорох шифона
+29.05.2026\t406\t8600\t\t114\t26\t19\t0\t27\t\tZигZаг
+29.05.2026\t575\t387\t\t79\t11\t14\t0\t14\t\tОверлок по жизни
+29.05.2026\t428\t577\t\t111\t12\t8\t0\t13\t\tШитье по жизни
+29.05.2026\t143\t23000\t\t89\t65\t77\t1\t97\t\tНитка Ариадны
+29.05.2026\t215\t361\t\t69\t13\t9\t0\t14\t\tНитка с иголкой | Шитье
+29.05.2026\t9598\t913\t\t133\t9\t14\t0\t6\t\tБесплатные МК
+29.05.2026\t189\t20400\t\t146\t44\t40\t0\t36\t\tШвейная комната
+29.05.2026\t19\t81\t\t4\t5\t0\t0\t0\t\tСуббота у машинки
+29.05.2026\t11\t40\t\t\t9\t0\t0\t1\t\tСтрочка за строчкой
+29.05.2026\t38\t111\t\t33\t3\t1\t0\t5\t\tШорох шифона
+29.05.2026\t31\t154\t\t20\t6\t0\t0\t2\t\tСхема раскрой запорол
+29.05.2026\t26\t133\t\t11\t6\t0\t0\t0\t\tДух Швеи`;
+
+// ── Парсинг встроенных данных ──
+function parseBuiltinData() {
+  const lines = RAW.trim().split('\n');
+  const headers = lines[0].split('\t');
+  return lines.slice(1).map(line => {
+    const cols = line.split('\t');
+    const parseNum = v => { const n = parseFloat((v||'').replace(/\s/g,'')); return isNaN(n) ? null : n; };
+    const parseER = v => { const n = parseFloat((v||'').replace(',','.').replace('%','')); return isNaN(n) ? null : n; };
+    const dateStr = (cols[0]||'').trim();
+    const parts = dateStr.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+    const date = parts ? `${parts[3]}-${parts[2]}-${parts[1]}` : dateStr;
+    return {
+      date, pub: (cols[10]||'').trim(),
+      pdp: parseNum(cols[1]), reach: parseNum(cols[2]), videos: parseNum(cols[3]),
+      channel: parseNum(cols[4]), visits: parseNum(cols[5]),
+      likes: parseNum(cols[6]), comments: parseNum(cols[7]), shares: parseNum(cols[8]),
+      er: parseER(cols[9])
+    };
+  }).filter(r => r.pub && r.date);
+}
+
+// ── State ──
+let allData = [];
+let currentPub = 'all';
+let currentPeriod = 'day';
+let charts = {};
+
+// ── JSONP загрузка (обходит CORS при открытии локального файла) ──
+function loadViaJsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_vkCb_' + Date.now();
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 15000);
+    function cleanup() { clearTimeout(timer); delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = (data) => { cleanup(); resolve(data); };
+    // Google Apps Script поддерживает ?callback= для JSONP
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName + '&t=' + Date.now();
+    script.onerror = () => { cleanup(); reject(new Error('script error')); };
+    document.head.appendChild(script);
+  });
+}
+
+// ── Корректировки данных ──
+function applyCorrections(data) {
+  return data.map(r => {
+    if (r.pub && r.pub.trim() === 'Бесплатные МК' && r.pdp !== null && r.pdp > 9500) {
+      return { ...r, pdp: r.pdp - 9500 };
+    }
+    return r;
+  });
+}
+
+// ── Init ──
+async function init() {
+  if (API_URL) {
+    setStatus('loading', 'Загрузка...');
+    try {
+      const res = await fetch(API_URL);
+      const json = await res.json();
+      allData = applyCorrections(json.data);
+      setStatus('ok', 'Данные из таблицы');
+      document.getElementById('setup-banner').style.display = 'none';
+    } catch(e) {
+      try {
+        const json = await loadViaJsonp(API_URL);
+        allData = applyCorrections(json.data || []);
+        setStatus('ok', 'Данные из таблицы ✓');
+        document.getElementById('setup-banner').style.display = 'none';
+      } catch(e2) {
+        setStatus('err', 'CORS ошибка — нужен сервер');
+        // Показываем подсказку как решить
+        document.getElementById('cors-tip').style.display = 'block';
+        allData = applyCorrections(parseBuiltinData());
+      }
+    }
+  } else {
+    allData = applyCorrections(parseBuiltinData());
+    setStatus('ok', 'Демо-данные');
+  }
+  buildSidebar();
+  render();
+}
+
+function setStatus(type, text) {
+  const dot = document.getElementById('dot');
+  dot.className = 'status-dot' + (type === 'loading' ? ' loading' : type === 'err' ? ' err' : '');
+  document.getElementById('status-text').textContent = text;
+}
+
+// ── Sidebar пабликов ──
+function buildSidebar() {
+  const pubs = [...new Set(allData.map(r => r.pub))].sort();
+  const sel = document.getElementById('pub-select');
+  const sidebar = document.getElementById('sidebar-pubs');
+
+  pubs.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    sel.appendChild(opt);
+
+    const div = document.createElement('div');
+    div.className = 'sidebar-item';
+    div.textContent = p;
+    div.title = p;
+    div.onclick = () => { onPubChange(p); sel.value = p; };
+    sidebar.appendChild(div);
+  });
+}
+
+function onPubChange(val) {
+  currentPub = val;
+  document.querySelectorAll('.sidebar-item').forEach(el => {
+    el.classList.toggle('active', el.textContent === val || (val === 'all' && el.textContent === 'Все паблики'));
+  });
+  render();
+}
+
+function setPeriod(p, btn) {
+  currentPeriod = p;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+// ── Фильтр данных ──
+function getFiltered() {
+  let d = allData.filter(r => r.reach !== null || r.pdp !== null);
+  if (currentPub !== 'all') d = d.filter(r => r.pub === currentPub);
+
+  if (currentPeriod === 'week') {
+    const dates = [...new Set(d.map(r => r.date))].sort();
+    const last = dates.slice(-7);
+    d = d.filter(r => last.includes(r.date));
+  } else if (currentPeriod === 'month') {
+    const dates = [...new Set(d.map(r => r.date))].sort();
+    const last = dates.slice(-30);
+    d = d.filter(r => last.includes(r.date));
+  }
+  return d;
+}
+
+// ── Группировка по дате и паблику ──
+function groupByDate(data) {
+  const map = {};
+  data.forEach(r => {
+    if (!map[r.date]) map[r.date] = { reach: 0, pdp: 0, likes: 0, comments: 0, shares: 0, videos: 0, visits: 0 };
+    map[r.date].reach += r.reach || 0;
+    map[r.date].pdp += r.pdp || 0;
+    map[r.date].likes += r.likes || 0;
+    map[r.date].comments += r.comments || 0;
+    map[r.date].shares += r.shares || 0;
+    map[r.date].videos += r.videos || 0;
+    map[r.date].visits += r.visits || 0;
+  });
+  return Object.entries(map).sort((a,b) => a[0].localeCompare(b[0]));
+}
+
+function groupByPub(data) {
+  const map = {};
+  data.forEach(r => {
+    if (!map[r.pub]) map[r.pub] = { pub: r.pub, reach: 0, pdp: 0, likes: 0, comments: 0, shares: 0, videos: 0, visits: 0, erVals: [] };
+    map[r.pub].reach += r.reach || 0;
+    map[r.pub].pdp = r.pdp || map[r.pub].pdp; // берём последнее
+    map[r.pub].likes += r.likes || 0;
+    map[r.pub].comments += r.comments || 0;
+    map[r.pub].shares += r.shares || 0;
+    map[r.pub].videos += r.videos || 0;
+    if (r.er !== null) map[r.pub].erVals.push(r.er);
+  });
+  return Object.values(map).map(p => ({
+    ...p, er: p.erVals.length ? (p.erVals.reduce((a,b)=>a+b,0)/p.erVals.length) : 0
+  })).sort((a,b) => b.reach - a.reach);
+}
+
+function fmtNum(n) {
+  if (n === null || n === undefined) return '—';
+  if (n >= 1000000) return (n/1000000).toFixed(1)+'M';
+  if (n >= 1000) return (n/1000).toFixed(1)+'K';
+  return Math.round(n).toLocaleString('ru');
+}
+
+function shortDate(d) {
+  const parts = d.split('-');
+  return `${parts[2]}.${parts[1]}`;
+}
+
+// ── Render ──
+function render() {
+  const data = getFiltered();
+  const byDate = groupByDate(data);
+  const byPub = groupByPub(data);
+
+  // Title
+  const title = currentPub === 'all' ? 'Все паблики' : currentPub;
+  document.getElementById('page-title').textContent = title;
+  document.getElementById('page-sub').textContent =
+    `${byDate.length} дней · ${byPub.length} пабликов · период: ${currentPeriod === 'day' ? 'все дни' : currentPeriod === 'week' ? 'последние 7 дней' : 'последние 30 дней'}`;
+
+  // KPI
+  const totReach = byDate.reduce((s,[,v])=>s+v.reach,0);
+  const totLikes = data.reduce((s,r)=>s+(r.likes||0),0);
+  const totShares = data.reduce((s,r)=>s+(r.shares||0),0);
+  const totComments = data.reduce((s,r)=>s+(r.comments||0),0);
+  const totVisits = data.reduce((s,r)=>s+(r.visits||0),0);
+  const totVideos = data.reduce((s,r)=>s+(r.videos||0),0);
+  const maxPdp = currentPub === 'all' ? byPub.reduce((s,p)=>s+p.pdp,0) : (byPub[0]?.pdp||0);
+  const avgER = byPub.length ? (byPub.reduce((s,p)=>s+p.er,0)/byPub.length).toFixed(2) : 0;
+
+  const kpiGrid = document.getElementById('kpi-grid');
+  kpiGrid.innerHTML = `
+    ${kpi('Подписчики', fmtNum(maxPdp), '', '#7c3aed')}
+    ${kpi('Охват (сумма)', fmtNum(totReach), '', '#06b6d4')}
+    ${kpi('Ср. ER', avgER+'%', '', '#fb923c')}
+    ${kpi('Посещений', fmtNum(totVisits), '', '#38bdf8')}
+    ${kpi('Лайки', fmtNum(totLikes), '', '#ec4899')}
+    ${kpi('Комменты', fmtNum(totComments), '', '#22c55e')}
+    ${kpi('Репосты', fmtNum(totShares), '', '#a78bfa')}
+    ${kpi('Ролики', fmtNum(totVideos), '', '#f59e0b')}
+  `;
+
+  // Reach chart badge
+  document.getElementById('reach-badge').textContent = fmtNum(totReach) + ' охват';
+
+  // Charts
+  renderReachChart(byDate);
+  renderSubsChart(byDate);
+  renderActChart(data);
+  renderTable(byPub);
+}
+
+function kpi(label, value, delta, color) {
+  return `<div class="kpi" style="--kpi-color:${color}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value">${value}</div>
+    ${delta ? `<div class="kpi-delta ${delta.startsWith('+') ? 'up' : delta.startsWith('-') ? 'dn' : 'neu'}">${delta}</div>` : ''}
+  </div>`;
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function renderReachChart(byDate) {
+  destroyChart('reach');
+  const labels = byDate.map(([d]) => shortDate(d));
+  const reachData = byDate.map(([,v]) => v.reach);
+
+  charts['reach'] = new Chart(document.getElementById('reachChart'), {
+    data: {
+      labels,
+      datasets: [{
+        type: 'line', label: 'Охват',
+        data: reachData,
+        borderColor: '#7c3aed',
+        backgroundColor: ctx => {
+          const g = ctx.chart.ctx.createLinearGradient(0,0,0,180);
+          g.addColorStop(0,'rgba(124,58,237,0.35)'); g.addColorStop(1,'rgba(124,58,237,0)'); return g;
+        },
+        fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#7c3aed', borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#636880', font: { size: 10 } }, border: { color: 'transparent' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#636880', font: { size: 10 }, callback: v => fmtNum(v) }, border: { color: 'transparent' } }
+      }
+    }
+  });
+}
+
+function renderSubsChart(byDate) {
+  destroyChart('subs');
+  const labels = byDate.map(([d]) => shortDate(d));
+  const subsData = byDate.map(([,v]) => v.pdp);
+
+  charts['subs'] = new Chart(document.getElementById('subsChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Подписчики',
+        data: subsData,
+        backgroundColor: ctx => {
+          const g = ctx.chart.ctx.createLinearGradient(0,0,0,200);
+          g.addColorStop(0,'rgba(6,182,212,0.8)'); g.addColorStop(1,'rgba(6,182,212,0.2)'); return g;
+        },
+        borderColor: '#06b6d4', borderWidth: 1, borderRadius: 5, borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#636880', font: { size: 10 } }, border: { color: 'transparent' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#636880', font: { size: 10 }, callback: v => fmtNum(v) }, border: { color: 'transparent' } }
+      }
+    }
+  });
+}
+
+function renderActChart(data) {
+  destroyChart('act');
+  const totLikes = data.reduce((s,r)=>s+(r.likes||0),0);
+  const totComments = data.reduce((s,r)=>s+(r.comments||0),0);
+  const totShares = data.reduce((s,r)=>s+(r.shares||0),0);
+
+  charts['act'] = new Chart(document.getElementById('actChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Лайки','Комменты','Репосты'],
+      datasets: [{ data: [totLikes, totComments, totShares], backgroundColor: ['#7c3aed','#06b6d4','#ec4899'], borderWidth: 0, hoverOffset: 6 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
+  });
+}
+
+function renderTable(byPub) {
+  const tbody = document.getElementById('rank-body');
+  tbody.innerHTML = '';
+  byPub.slice(0, 15).forEach((p, i) => {
+    const erPct = Math.min(p.er / 12 * 100, 100);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td title="${p.pub}">${p.pub}</td>
+      <td>${fmtNum(p.pdp)}</td>
+      <td>${fmtNum(p.reach)}</td>
+      <td>${fmtNum(p.visits)}</td>
+      <td>${fmtNum(p.likes)}</td>
+      <td>${fmtNum(p.shares)}</td>
+      <td>
+        <span style="margin-right:5px">${p.er.toFixed(1)}%</span>
+        <span class="er-bar-bg"><span class="er-bar-fill" style="width:${erPct}%"></span></span>
+      </td>
+      <td><span class="badge ${p.er>5?'up':p.er>2?'neu':'dn'}">${p.er>5?'🔥 Топ':p.er>2?'Норм':'Низкий'}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function reloadData() {
+  allData = [];
+  document.getElementById('kpi-grid').innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+  // Destroy charts
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+  init();
+}
+
+init();
+</script>
+</body>
+</html>
