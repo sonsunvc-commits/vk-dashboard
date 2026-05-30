@@ -96,7 +96,7 @@ table.rt tr:hover td{background:rgba(255,255,255,.02)}
 .er-red{background:rgba(239,68,68,.15);color:#f87171}
 
 /* Pivot table */
-.pivot-wrap{overflow-x:auto;max-height:400px;overflow-y:auto}
+.pivot-wrap{overflow-x:auto}
 table.pivot{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}
 table.pivot th{color:var(--muted);font-weight:400;padding:5px 10px;text-align:center;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;z-index:1}
 table.pivot th:first-child{text-align:left;min-width:130px;position:sticky;left:0;background:var(--bg2);z-index:2}
@@ -266,12 +266,15 @@ let pivotMode = 'week';
 let charts = {};
 
 // ── Helpers ──
-const fmtNum = n => {
+const fmtNum = (n, abbrev=false) => {
   if (n === null || n === undefined || isNaN(n)) return '—';
-  if (Math.abs(n) >= 1000000) return (n/1000000).toFixed(1)+'M';
-  if (Math.abs(n) >= 1000) return (n/1000).toFixed(1)+'K';
+  if (abbrev) {
+    if (Math.abs(n) >= 1000000) return (n/1000000).toFixed(1)+'M';
+    if (Math.abs(n) >= 1000) return (n/1000).toFixed(1)+'K';
+  }
   return Math.round(n).toLocaleString('ru');
 };
+const fmtReach = n => fmtNum(n, true);
 const fmtDelta = (v, prev) => {
   if (!prev || prev === 0) return '';
   const pct = ((v - prev) / prev * 100).toFixed(1);
@@ -304,7 +307,14 @@ function parseBuiltinData() { return []; }
 
 // ── Date helpers ──
 function getLatestDate() {
+  // Исключаем сегодня — данные снимаются за вчера
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   const dates = allData.map(r => r.date).filter(Boolean).sort();
+  // Берём последнюю дату, которая не сегодня
+  for (let i = dates.length - 1; i >= 0; i--) {
+    if (dates[i] < todayStr) return dates[i];
+  }
   return dates[dates.length - 1];
 }
 function getDatesBefore(refDate, n) {
@@ -432,7 +442,7 @@ function renderKpiRow(elId, curr, prev) {
   const el = document.getElementById(elId);
   if (!el) return;
   const metrics = [
-    {label:'Охват', val:curr.reach, prev:prev?.reach, color:'#7c3aed'},
+    {label:'Охват', val:curr.reach, prev:prev?.reach, color:'#7c3aed', reach:true},
     {label:'Подписчики', val:curr.pdp, prev:prev?.pdp, color:'#06b6d4'},
     {label:'Прирост пдп', val:curr.pdpGrowth, prev:prev?.pdpGrowth, color:'#22c55e'},
     {label:'Ср. ER', val:curr.er, prev:prev?.er, color:'#f59e0b', pct:true},
@@ -441,7 +451,7 @@ function renderKpiRow(elId, curr, prev) {
   el.innerHTML = metrics.map(m => `
     <div class="kpi" style="--kpi-color:${m.color}">
       <div class="kpi-label">${m.label}</div>
-      <div class="kpi-value">${m.pct ? curr.er.toFixed(2)+'%' : fmtNum(m.val)}</div>
+      <div class="kpi-value">${m.pct ? curr.er.toFixed(2)+'%' : m.reach ? fmtReach(m.val) : fmtNum(m.val)}</div>
       ${prev ? `<div class="kpi-delta">${fmtDelta(m.val, m.prev)}</div>` : ''}
     </div>
   `).join('');
@@ -499,11 +509,11 @@ function renderRankTable(tbodyId, byPub) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   if (!byPub.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Нет данных</td></tr>'; return; }
-  tbody.innerHTML = byPub.slice(0,15).map((p,i) => `
+  tbody.innerHTML = byPub.sort((a,b)=>b.reach-a.reach).map((p,i) => `
     <tr>
       <td>${i+1}</td>
       <td title="${p.pub}">${p.pub}</td>
-      <td>${fmtNum(p.reach)}</td>
+      <td>${fmtReach(p.reach)}</td>
       <td>${fmtNum(p.pdp)}</td>
       <td>${p.pdpGrowth > 0 ? `<span class="up">+${fmtNum(p.pdpGrowth)}</span>` : p.pdpGrowth < 0 ? `<span class="dn">${fmtNum(p.pdpGrowth)}</span>` : '<span class="neu">0</span>'}</td>
       <td>${fmtNum(p.visits)}</td>
@@ -578,7 +588,7 @@ function renderPivot() {
   let html = `<thead><tr><th>Паблик</th>${sortedPeriods.map(p=>`<th>${p}</th>`).join('')}<th>Итого</th></tr></thead><tbody>`;
 
   // Total row
-  html += `<tr class="pivot-total"><td>Все паблики</td>${sortedPeriods.map(p=>`<td><span class="pv" style="color:var(--accent2)">${fmtNum(pTotals[p])}</span></td>`).join('')}<td><span class="pv" style="color:var(--accent2);font-weight:700">${fmtNum(grand)}</span></td></tr>`;
+  html += `<tr class="pivot-total"><td>Все паблики</td>${sortedPeriods.map(p=>`<td><span class="pv" style="color:var(--accent2)">${fmtReach(pTotals[p])}</span></td>`).join('')}<td><span class="pv" style="color:var(--accent2);font-weight:700">${fmtReach(grand)}</span></td></tr>`;
 
   sortedPubs.forEach(pub => {
     const total = sortedPeriods.reduce((s,p)=>s+(periodMap[pub]?.[p]||0),0);
