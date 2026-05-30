@@ -495,7 +495,7 @@ async function init() {
   if (API_URL) {
     setStatus('loading', 'Загрузка...');
     try {
-      const res = await fetch(API_URL);
+      const res = await fetch(API_URL, { redirect: 'follow', mode: 'cors' });
       const json = await res.json();
       allData = applyCorrections(json.data);
       setStatus('ok', 'Данные из таблицы ✓');
@@ -503,7 +503,7 @@ async function init() {
       document.getElementById('cors-tip').style.display = 'none';
       document.getElementById('paste-banner').style.display = 'none';
       buildSidebar(); render(); return;
-    } catch(e) {}
+    } catch(e) { console.log('fetch failed:', e); }
     try {
       const json = await loadViaJsonp(API_URL);
       allData = applyCorrections(json.data || []);
@@ -519,12 +519,14 @@ async function init() {
     document.getElementById('setup-banner').style.display = 'none';
     document.getElementById('paste-banner').style.display = 'block';
     allData = applyCorrections(parseBuiltinData());
+    buildSidebar();
+    render();
   } else {
     allData = applyCorrections(parseBuiltinData());
     setStatus('ok', 'Демо-данные');
+    buildSidebar();
+    render();
   }
-  buildSidebar();
-  render();
 }
 
 function loadFromPaste() {
@@ -803,9 +805,11 @@ function renderTable(byPub) {
 
 function reloadData() {
   allData = [];
+  currentPub = 'all';
   document.getElementById('kpi-grid').innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
-  // Destroy charts
-  Object.values(charts).forEach(c => c.destroy());
+  document.getElementById('sidebar-pubs').innerHTML = '';
+  document.getElementById('pub-select').innerHTML = '<option value="all">Все паблики</option>';
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
   charts = {};
   init();
 }
