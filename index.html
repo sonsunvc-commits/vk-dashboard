@@ -150,7 +150,7 @@ table.pivot.compact td:first-child{font-size:10px;min-width:110px}
   <div id="paste-banner" class="banner banner-cyan" style="display:none">
     <div style="flex:1">
       ⚡ <strong>Загрузить данные:</strong> Откройте
-      <a href="https://script.google.com/macros/s/AKfycby6RgGQAsEjb1e8g0B_N4ddc2P0lQlBfaAA-UOWyv13Y_L1ezQVdHjMU71hmKFe78WLcQ/exec" target="_blank" style="color:#06b6d4">ссылку API</a>,
+      <a href="https://script.google.com/macros/s/AKfycbyKsIZNPgiDRqqe0RFG39UefQVfRpQ9g_8aHl1Jr0bz-De4MfWyfRHJ7j1FgCGnDxLaAA/exec" target="_blank" style="color:#06b6d4">ссылку API</a>,
       выделите весь текст (⌘A → ⌘C), вставьте сюда:
       <div class="paste-row">
         <textarea class="paste-input" id="paste-input" placeholder="Вставьте JSON сюда..."></textarea>
@@ -217,6 +217,22 @@ table.pivot.compact td:first-child{font-size:10px;min-width:110px}
     <div id="compare-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
   </div>
 
+  <!-- Leads charts -->
+  <div class="charts-row" style="margin-bottom:10px">
+    <div class="card">
+      <div class="card-title">Лиды по дням — последние 10 дней <span class="card-badge" id="leads-badge">—</span></div>
+      <div style="position:relative;width:100%;height:220px">
+        <canvas id="leadsChart"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Охват на 1 лида — последние 10 дней</div>
+      <div style="position:relative;width:100%;height:220px">
+        <canvas id="cplChart"></canvas>
+      </div>
+    </div>
+  </div>
+
   <!-- Two tables side by side -->
   <div class="charts-row2" style="margin-bottom:10px">
     <div class="card">
@@ -276,9 +292,10 @@ table.pivot.compact td:first-child{font-size:10px;min-width:110px}
 </div>
 
 <script>
-const API_URL = 'https://script.google.com/macros/s/AKfycby6RgGQAsEjb1e8g0B_N4ddc2P0lQlBfaAA-UOWyv13Y_L1ezQVdHjMU71hmKFe78WLcQ/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyKsIZNPgiDRqqe0RFG39UefQVfRpQ9g_8aHl1Jr0bz-De4MfWyfRHJ7j1FgCGnDxLaAA/exec';
 
 let allData = [];
+let allLeads = [];
 let currentPub = 'all';
 let pivotMode = 'week';
 let charts = {};
@@ -769,6 +786,9 @@ function render() {
   // Pivot
   renderPivot();
 
+  // Leads charts
+  renderLeadsCharts(last10);
+
   // Compare chart
   renderCompareChart();
 
@@ -921,6 +941,84 @@ function renderCompareChart() {
       </span>
     `).join('');
   }
+}
+
+// ── Leads charts ──
+function renderLeadsCharts(dates) {
+  destroyChart('leads');
+  destroyChart('cpl');
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const cleanDates = dates.filter(d => d < todayStr);
+  const labels = cleanDates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+
+  // Filter leads by pub
+  const filteredLeads = currentPub === 'all'
+    ? allLeads
+    : allLeads.filter(l => l.pub === currentPub);
+
+  // Leads per day
+  const leadsPerDay = cleanDates.map(d => filteredLeads.filter(l => l.date === d).length);
+  const totalLeads = leadsPerDay.reduce((a,b)=>a+b,0);
+  document.getElementById('leads-badge').textContent = totalLeads + ' лидов';
+
+  // Reach per day
+  const reachPerDay = cleanDates.map(d => {
+    return allData.filter(r => r.date === d && (currentPub === 'all' || r.pub === currentPub))
+      .reduce((s,r) => s + (r.reach||0), 0);
+  });
+
+  // CPL (cost per lead = reach / leads)
+  const cplPerDay = cleanDates.map((d,i) => {
+    return leadsPerDay[i] > 0 ? Math.round(reachPerDay[i] / leadsPerDay[i]) : null;
+  });
+
+  // Leads chart
+  charts['leads'] = new Chart(document.getElementById('leadsChart'), {
+    data: { labels, datasets: [{
+      type: 'bar', label: 'Лиды', data: leadsPerDay,
+      backgroundColor: ctx => {
+        const g = ctx.chart.ctx.createLinearGradient(0,0,0,220);
+        g.addColorStop(0,'rgba(236,72,153,0.8)'); g.addColorStop(1,'rgba(236,72,153,0.2)'); return g;
+      },
+      borderColor: '#ec4899', borderWidth: 1, borderRadius: 5, borderSkipped: false
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid:{display:false}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} },
+        y: { grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} }
+      }
+    }
+  });
+
+  // CPL chart
+  charts['cpl'] = new Chart(document.getElementById('cplChart'), {
+    data: { labels, datasets: [{
+      type: 'line', label: 'Охват / лид', data: cplPerDay,
+      borderColor: '#f59e0b',
+      backgroundColor: ctx => {
+        const g = ctx.chart.ctx.createLinearGradient(0,0,0,220);
+        g.addColorStop(0,'rgba(245,158,11,0.3)'); g.addColorStop(1,'rgba(245,158,11,0)'); return g;
+      },
+      fill: true, tension: 0.4, pointRadius: 4,
+      pointBackgroundColor: '#f59e0b', borderWidth: 2,
+      spanGaps: true
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${fmtNum(ctx.raw)} охвата/лид` } }
+      },
+      scales: {
+        x: { grid:{display:false}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} },
+        y: { grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10},callback:v=>fmtReach(v)}, border:{color:'transparent'} }
+      }
+    }
+  });
 }
 
 // ── Init ──
