@@ -713,11 +713,12 @@ function render() {
   const monthDates = getCurrentMonthDates();
   const weekDates = getCurrentWeekDates();
 
-  // Get prev periods
+  // latest = вчера (последняя дата с данными, сегодня исключён)
+  // yesterday = latest, dayBefore = предыдущая дата
   const allDates = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
   const latestIdx = allDates.indexOf(latest);
-  const yesterday = latestIdx > 0 ? allDates[latestIdx-1] : null;
-  const dayBefore = latestIdx > 1 ? allDates[latestIdx-2] : null;
+  const yesterday = latest; // latest уже исключает сегодня
+  const dayBefore = latestIdx > 0 ? allDates[latestIdx-1] : null;
 
   // Previous month/week for deltas
   const prevMonthDates = (() => {
