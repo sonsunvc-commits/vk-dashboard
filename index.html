@@ -5,11 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VK Analytics Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script>
-  // Регистрируем плагин глобально, отключаем по умолчанию
-  Chart.register(ChartDataLabels);
-  Chart.defaults.set('plugins.datalabels', { display: false });
+// Самописный плагин подписей — не требует CDN
+const labelPlugin = {
+  id: 'customLabels',
+  afterDatasetsDraw(chart) {
+    const {ctx, data} = chart;
+    chart.data.datasets.forEach((ds, di) => {
+      if (!ds._showLabels) return;
+      const meta = chart.getDatasetMeta(di);
+      meta.data.forEach((el, i) => {
+        const val = ds.data[i];
+        if (val === null || val === undefined || val === 0) return;
+        const {x, y} = el.getCenterPoint ? el.getCenterPoint() : {x: el.x, y: el.y};
+        const top = el.y !== undefined ? el.y : y;
+        ctx.save();
+        ctx.font = ds._labelFont || '9px sans-serif';
+        ctx.fillStyle = ds._labelColor || 'rgba(200,200,255,0.7)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(ds._labelFmt ? ds._labelFmt(val) : val, x, top - 3);
+        ctx.restore();
+      });
+    });
+  }
+};
+Chart.register(labelPlugin);
 </script>
 <style>
 :root {
@@ -592,10 +613,10 @@ function renderReachChart(dates) {
       type:'line', data, borderColor:'#7c3aed',
       backgroundColor: ctx => { const g=ctx.chart.ctx.createLinearGradient(0,0,0,170); g.addColorStop(0,'rgba(124,58,237,.35)'); g.addColorStop(1,'rgba(124,58,237,0)'); return g; },
       fill:true, tension:.4, pointRadius:3, pointBackgroundColor:'#7c3aed', borderWidth:2,
-      datalabels: { display:true, color:'rgba(200,180,255,0.6)', font:{size:9}, formatter:v=>fmtReach(v), anchor:'end', align:'top', offset:2 }
+      _showLabels:true, _labelColor:'rgba(200,180,255,0.7)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>fmtReach(v)
     }]},
     options: { responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, datalabels:{} },
+      plugins:{ legend:{display:false} },
       scales: {
         x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},
         y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10},callback:v=>fmtNum(v)},border:{color:'transparent'}}
@@ -618,11 +639,11 @@ function renderSubsChart(dates) {
       backgroundColor: ctx => { const v=ctx.raw||0; return v>=0?'rgba(34,197,94,.6)':'rgba(239,68,68,.6)'; },
       borderColor: ctx => { const v=ctx.raw||0; return v>=0?'#22c55e':'#ef4444'; },
       borderWidth:1,
-      datalabels: { display: ctx => Math.abs(ctx.raw||0)>0, color: ctx => (ctx.raw||0)>=0?'rgba(100,220,140,0.75)':'rgba(250,130,130,0.75)', font:{size:9,weight:'500'}, anchor: ctx => (ctx.raw||0)>=0?'end':'start', align: ctx => (ctx.raw||0)>=0?'top':'bottom', offset:1, formatter:v=>'+'+fmtNum(v) }
+      _showLabels:true, _labelFont:'bold 9px sans-serif', _labelColor:'rgba(100,220,140,0.75)', _labelFmt:v=>v>0?'+'+fmtNum(v):fmtNum(v)
     }]},
     options: { responsive:true, maintainAspectRatio:false,
       layout:{ padding:{ top:18 } },
-      plugins:{legend:{display:false}, datalabels:{}},
+      plugins:{legend:{display:false}},
       scales: {
         x:{grid:{display:false},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},
         y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10},callback:v=>fmtNum(v)},border:{color:'transparent'}}
@@ -995,12 +1016,12 @@ function renderLeadsCharts(dates) {
         g.addColorStop(0,'rgba(236,72,153,0.8)'); g.addColorStop(1,'rgba(236,72,153,0.2)'); return g;
       },
       borderColor: '#ec4899', borderWidth: 1, borderRadius: 5, borderSkipped: false,
-      datalabels: { display: ctx => (ctx.raw||0)>0, color:'rgba(255,180,220,0.8)', font:{size:9,weight:'500'}, anchor:'end', align:'top', offset:1, formatter:v=>v }
+      _showLabels:true, _labelColor:'rgba(255,180,220,0.8)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>v
     }]},
     options: {
       responsive: true, maintainAspectRatio: false,
       layout:{ padding:{ top:18 } },
-      plugins: { legend: { display: false }, datalabels:{} },
+      plugins: { legend: { display: false } },
       scales: {
         x: { grid:{display:false}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} },
         y: { grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} }
@@ -1020,7 +1041,7 @@ function renderLeadsCharts(dates) {
       fill: true, tension: 0.4, pointRadius: 4,
       pointBackgroundColor: '#f59e0b', borderWidth: 2,
       spanGaps: true,
-      datalabels: { display: ctx => ctx.raw !== null, color:'rgba(255,210,100,0.7)', font:{size:9}, anchor:'end', align:'top', offset:2, formatter:v=>fmtReach(v) }
+      _showLabels:true, _labelColor:'rgba(255,210,100,0.8)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>fmtReach(v)
     }]},
     options: {
       responsive: true, maintainAspectRatio: false,
