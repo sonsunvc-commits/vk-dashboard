@@ -842,7 +842,8 @@ function loadViaJsonp(url) {
 
 // ── Reload ──
 function reloadData() {
-  allData = []; currentPub = 'all';
+  allData = [];
+  allLeads = []; currentPub = 'all';
   Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}});
   charts = {};
   document.getElementById('pub-select').value='all';
@@ -1033,14 +1034,16 @@ async function init() {
     const res = await fetch(API_URL, {redirect:'follow',mode:'cors'});
     const json = await res.json();
     allData = applyCorrections(json.data);
-    setStatus('ok','Данные из таблицы ✓');
+    allLeads = json.leads || [];
+    setStatus('ok','Данные из таблицы ✓ (' + allLeads.length + ' лидов)');
     ['setup-banner','paste-banner'].forEach(id=>document.getElementById(id).style.display='none');
     buildSidebar(); render(); return;
   } catch(e) { console.log('fetch failed:',e); }
   try {
     const json = await loadViaJsonp(API_URL);
     allData = applyCorrections(json.data||[]);
-    setStatus('ok','Данные из таблицы ✓');
+    allLeads = json.leads || [];
+    setStatus('ok','Данные из таблицы ✓ (' + allLeads.length + ' лидов)');
     ['setup-banner','paste-banner'].forEach(id=>document.getElementById(id).style.display='none');
     buildSidebar(); render(); return;
   } catch(e2) { console.log('jsonp failed:',e2); }
