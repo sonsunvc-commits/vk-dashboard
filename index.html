@@ -377,6 +377,42 @@ th.col-today{color:rgba(255,255,255,.5)!important;font-style:italic}
           <table class="hm" id="hm-leads"></table>
         </div>
       </div>
+
+      <!-- PDP heatmap -->
+      <div class="hm-card">
+        <div class="hm-title">
+          <span class="hm-title-dot" style="background:#22c55e"></span>
+          Подписчики (ПДП) по паблику и дню
+          <span style="font-size:10px;color:var(--muted);font-weight:400">— последние 20 дней · последнее известное значение за день</span>
+        </div>
+        <div class="hm-wrap">
+          <table class="hm" id="hm-pdp"></table>
+        </div>
+      </div>
+
+      <!-- Visits heatmap -->
+      <div class="hm-card">
+        <div class="hm-title">
+          <span class="hm-title-dot" style="background:#06b6d4"></span>
+          Посещений по паблику и дню
+          <span style="font-size:10px;color:var(--muted);font-weight:400">— последние 20 дней</span>
+        </div>
+        <div class="hm-wrap">
+          <table class="hm" id="hm-visits"></table>
+        </div>
+      </div>
+
+      <!-- ER heatmap -->
+      <div class="hm-card">
+        <div class="hm-title">
+          <span class="hm-title-dot" style="background:#f59e0b"></span>
+          ER по паблику и дню
+          <span style="font-size:10px;color:var(--muted);font-weight:400">— (лайки+репосты+комменты) / охват · последние 20 дней</span>
+        </div>
+        <div class="hm-wrap">
+          <table class="hm" id="hm-er"></table>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -888,8 +924,173 @@ function renderHeatmaps() {
     '#ec4899'
   );
 
+  // ── PDP heatmap — последнее значение за день по каждому паблику ──
+  const pdpMatrix = {};
+  pubs.forEach(pub => {
+    pdpMatrix[pub] = {};
+    last20.forEach(d => {
+      // берём последнее ненулевое pdp за этот день для паблика
+      const rows = allData.filter(r => r.date === d && r.pub === pub && r.pdp !== null && r.pdp !== undefined);
+      pdpMatrix[pub][d] = rows.length ? rows[rows.length - 1].pdp : 0;
+    });
+  });
+  // Для итоговой строки — сумма последних pdp всех пабликов за день
+  const pdpColTot = {};
+  last20.forEach(d => { pdpColTot[d] = pubs.reduce((s, pub) => s + (pdpMatrix[pub][d] || 0), 0); });
+  // Итог по паблику — последнее известное pdp в периоде (не сумма!)
+  function buildHmTablePdp(tableId, pubs, dates, colLabels, getVal, colTotals) {
+    const table = document.getElementById(tableId); if (!table) return;
+    const allVals = [];
+    pubs.forEach(pub => dates.forEach(d => { const v = getVal(pub, d); if (v > 0) allVals.push(v); }));
+    allVals.sort((a, b) => a - b);
+    const p33 = allVals[Math.floor(allVals.length * .33)] || 1;
+    const p66 = allVals[Math.floor(allVals.length * .66)] || 2;
+
+    let html = `<thead><tr>
+      <th class="col-pub">Паблик</th>
+      <th class="col-total">Последнее</th>
+      ${colLabels.map(lb => `<th>${lb}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+    // Total row — сумма всех последних pdp
+    const grandTotal = pubs.reduce((s, pub) => {
+      const lastVal = dates.slice().reverse().map(d => getVal(pub, d)).find(v => v > 0) || 0;
+      return s + lastVal;
+    }, 0);
+    html += `<tr class="hm-total">
+      <td class="col-pub">Все паблики</td>
+      <td><span class="hc hc-tot">${fmtReach(grandTotal)}</span></td>
+      ${dates.map(d => `<td><span class="hc hc-tot">${fmtReach(colTotals[d] || 0)}</span></td>`).join('')}
+    </tr>`;
+
+    pubs.forEach(pub => {
+      // последнее известное pdp за период
+      const lastKnown = dates.slice().reverse().map(d => getVal(pub, d)).find(v => v > 0) || 0;
+      html += `<tr>
+        <td class="col-pub" title="${pub}">${pub}</td>
+        <td><span class="hc" style="background:rgba(34,197,94,.1);color:#86efac;font-weight:600">${fmtReach(lastKnown)}</span></td>
+        ${dates.map(d => {
+          const v = getVal(pub, d) || 0;
+          const cls = hmColor(v, p33, p66);
+          return `<td>${v > 0 ? `<span class="hc ${cls}">${fmtReach(v)}</span>` : `<span class="hc hc-0">—</span>`}</td>`;
+        }).join('')}
+      </tr>`;
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+  }
+  buildHmTablePdp('hm-pdp', pubs, last20, colLabels,
+    (pub, d) => pdpMatrix[pub][d] || 0,
+    pdpColTot
+  );
+
+  // ── Visits heatmap ──
+  const visitsMatrix = {};
+  pubs.forEach(pub => {
+    visitsMatrix[pub] = {};
+    last20.forEach(d => {
+      visitsMatrix[pub][d] = allData.filter(r => r.date === d && r.pub === pub).reduce((s, r) => s + (r.visits || 0), 0);
+    });
+  });
+  const visitsColTot = {};
+  last20.forEach(d => { visitsColTot[d] = pubs.reduce((s, pub) => s + (visitsMatrix[pub][d] || 0), 0); });
+
+  buildHmTable('hm-visits', pubs, last20, colLabels,
+    (pub, d) => visitsMatrix[pub][d] || 0,
+    visitsColTot,
+    v => fmtNum(v),
+    '#06b6d4'
+  );
+
+  // ── ER heatmap — (likes+comments+shares)/reach*100 за каждый день ──
+  // Считаем по каждому паблику и дню, цвет: 0–2% красный, 2–5% жёлтый, 5%+ зелёный
+  const erMatrix = {};
+  pubs.forEach(pub => {
+    erMatrix[pub] = {};
+    last20.forEach(d => {
+      const rows = allData.filter(r => r.date === d && r.pub === pub);
+      const reach = rows.reduce((s, r) => s + (r.reach || 0), 0);
+      const eng = rows.reduce((s, r) => s + (r.likes || 0) + (r.comments || 0) + (r.shares || 0), 0);
+      erMatrix[pub][d] = reach > 0 ? (eng / reach * 100) : null;
+    });
+  });
+  // Итог по колонке — взвешенный ER (суммарный eng / суммарный reach)
+  const erColTot = {};
+  last20.forEach(d => {
+    const totReach = pubs.reduce((s, pub) => {
+      const rows = allData.filter(r => r.date === d && r.pub === pub);
+      return s + rows.reduce((a, r) => a + (r.reach || 0), 0);
+    }, 0);
+    const totEng = pubs.reduce((s, pub) => {
+      const rows = allData.filter(r => r.date === d && r.pub === pub);
+      return s + rows.reduce((a, r) => a + (r.likes || 0) + (r.comments || 0) + (r.shares || 0), 0);
+    }, 0);
+    erColTot[d] = totReach > 0 ? (totEng / totReach * 100) : null;
+  });
+
+  // ER использует фиксированный светофор: <2 красный, 2-5 жёлтый, >5 зелёный
+  function buildHmTableER(tableId, pubs, dates, colLabels) {
+    const table = document.getElementById(tableId); if (!table) return;
+    function erCls(v) {
+      if (v === null || v === 0) return 'hc-0';
+      if (v < 2) return 'hc-lo';
+      if (v < 5) return 'hc-mid';
+      return 'hc-hi';
+    }
+    // Средний ER по паблику за период (взвешенный)
+    function pubAvgER(pub) {
+      let totR = 0, totE = 0;
+      dates.forEach(d => {
+        const rows = allData.filter(r => r.date === d && r.pub === pub);
+        totR += rows.reduce((s, r) => s + (r.reach || 0), 0);
+        totE += rows.reduce((s, r) => s + (r.likes || 0) + (r.comments || 0) + (r.shares || 0), 0);
+      });
+      return totR > 0 ? (totE / totR * 100) : null;
+    }
+    // Общий ER за весь период
+    let gR = 0, gE = 0;
+    pubs.forEach(pub => dates.forEach(d => {
+      const rows = allData.filter(r => r.date === d && r.pub === pub);
+      gR += rows.reduce((s, r) => s + (r.reach || 0), 0);
+      gE += rows.reduce((s, r) => s + (r.likes || 0) + (r.comments || 0) + (r.shares || 0), 0);
+    }));
+    const grandER = gR > 0 ? (gE / gR * 100) : null;
+
+    let html = `<thead><tr>
+      <th class="col-pub">Паблик</th>
+      <th class="col-total">Ср. ER</th>
+      ${colLabels.map(lb => `<th>${lb}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+    html += `<tr class="hm-total">
+      <td class="col-pub">Все паблики</td>
+      <td><span class="hc hc-tot">${grandER !== null ? grandER.toFixed(2) + '%' : '—'}</span></td>
+      ${dates.map(d => {
+        const v = erColTot[d];
+        const cls = erCls(v);
+        return `<td>${v !== null && v > 0 ? `<span class="hc ${cls}">${v.toFixed(1)}%</span>` : `<span class="hc hc-0">—</span>`}</td>`;
+      }).join('')}
+    </tr>`;
+
+    pubs.forEach(pub => {
+      const avg = pubAvgER(pub);
+      html += `<tr>
+        <td class="col-pub" title="${pub}">${pub}</td>
+        <td><span class="hc" style="background:rgba(245,158,11,.1);color:#fde68a;font-weight:600">${avg !== null ? avg.toFixed(2) + '%' : '—'}</span></td>
+        ${dates.map(d => {
+          const v = erMatrix[pub][d];
+          const cls = erCls(v);
+          return `<td>${v !== null && v > 0 ? `<span class="hc ${cls}">${v.toFixed(1)}%</span>` : `<span class="hc hc-0">—</span>`}</td>`;
+        }).join('')}
+      </tr>`;
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+  }
+  buildHmTableER('hm-er', pubs, last20, colLabels);
+
   document.getElementById('table-page-sub').textContent =
-    `${last20.length} дней · охваты и лиды по каждому паблику · последние данные: ${latest.split('-').reverse().join('.')}`;
+    `${last20.length} дней · последние данные: ${latest.split('-').reverse().join('.')}`;
 }
 
 // ── Sidebar ──
