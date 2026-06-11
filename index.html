@@ -6,19 +6,18 @@
 <title>VK Analytics Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// Самописный плагин подписей — не требует CDN
 const labelPlugin = {
   id: 'customLabels',
   afterDatasetsDraw(chart) {
-    const {ctx, data} = chart;
+    const {ctx} = chart;
     chart.data.datasets.forEach((ds, di) => {
       if (!ds._showLabels) return;
       const meta = chart.getDatasetMeta(di);
       meta.data.forEach((el, i) => {
         const val = ds.data[i];
         if (val === null || val === undefined || val === 0) return;
-        const {x, y} = el.getCenterPoint ? el.getCenterPoint() : {x: el.x, y: el.y};
-        const top = el.y !== undefined ? el.y : y;
+        const {x} = el.getCenterPoint ? el.getCenterPoint() : {x: el.x};
+        const top = el.y !== undefined ? el.y : el.getCenterPoint().y;
         ctx.save();
         ctx.font = ds._labelFont || '9px sans-serif';
         ctx.fillStyle = ds._labelColor || 'rgba(200,200,255,0.7)';
@@ -62,15 +61,26 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);font-size:1
 .btn-reload:hover{background:rgba(124,58,237,.2)}
 
 /* Main */
-.main{flex:1;overflow-x:hidden;padding:18px 20px}
+.main{flex:1;overflow-x:hidden;display:flex;flex-direction:column}
+
+/* Page tabs */
+.page-tabs{display:flex;padding:0 20px;background:var(--bg1);border-bottom:1px solid var(--border);flex-shrink:0}
+.page-tab{padding:12px 20px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;white-space:nowrap}
+.page-tab:hover{color:var(--text)}
+.page-tab.active{color:var(--accent1);border-bottom-color:var(--accent1)}
+
+/* Pages */
+.page{display:none;flex:1;overflow-x:hidden}
+.page.active{display:block}
+
+/* Dashboard page */
+.dash-inner{padding:18px 20px}
+
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
 .topbar-title{font-size:18px;font-weight:600}
 .topbar-sub{font-size:11px;color:var(--muted);margin-top:2px}
 .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pub-select{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:12px;cursor:pointer;max-width:180px}
-.period-group{display:flex;background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
-.period-btn{padding:6px 14px;font-size:11px;color:var(--muted);cursor:pointer;border:none;background:transparent;transition:all .15s}
-.period-btn.active{background:var(--accent1);color:#fff}
 
 /* Banners */
 .banner{border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:12px;line-height:1.7;display:flex;align-items:flex-start;gap:10px}
@@ -84,7 +94,7 @@ body{background:var(--bg0);color:var(--text);font-family:var(--font);font-size:1
 textarea.paste-input{flex:1;height:50px;background:rgba(0,0,0,.3);border:1px solid rgba(6,182,212,.3);border-radius:8px;color:var(--text);font-size:11px;padding:8px;font-family:monospace;resize:none}
 .btn-load{padding:8px 14px;background:rgba(6,182,212,.2);border:1px solid rgba(6,182,212,.4);color:#67e8f9;border-radius:8px;cursor:pointer;font-size:12px;white-space:nowrap}
 
-/* KPI blocks */
+/* KPI */
 .kpi-section{margin-bottom:14px}
 .kpi-section-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;padding-left:2px}
 .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px}
@@ -101,9 +111,6 @@ textarea.paste-input{flex:1;height:50px;background:rgba(0,0,0,.3);border:1px sol
 .card-badge{font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(124,58,237,.2);color:var(--accent1)}
 .charts-row{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px}
 .charts-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
-.leg{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-.leg-i{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
-.leg-dot{width:8px;height:3px;border-radius:2px;flex-shrink:0}
 
 /* Tables */
 .tbl-wrap{overflow-x:auto}
@@ -115,14 +122,12 @@ table.rt td:first-child{color:var(--muted);width:22px;text-align:center}
 table.rt td:nth-child(2){text-align:left;font-weight:500;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 table.rt tr:last-child td{border-bottom:none}
 table.rt tr:hover td{background:rgba(255,255,255,.02)}
-
-/* ER badge */
 .er-badge{display:inline-block;font-size:10px;padding:3px 8px;border-radius:6px;font-weight:600}
 .er-green{background:rgba(34,197,94,.15);color:#4ade80}
 .er-yellow{background:rgba(234,179,8,.15);color:#fbbf24}
 .er-red{background:rgba(239,68,68,.15);color:#f87171}
 
-/* Pivot table */
+/* Pivot */
 .pivot-wrap{overflow-x:auto}
 table.pivot{width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap}
 table.pivot th{color:var(--muted);font-weight:400;padding:5px 10px;text-align:center;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;z-index:1}
@@ -143,6 +148,59 @@ table.pivot.compact td:first-child{font-size:10px;min-width:110px}
 .loader{display:flex;align-items:center;justify-content:center;height:80px;color:var(--muted);gap:8px}
 .spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent1);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ═══════════════════════════════════════
+   TABLE PAGE
+═══════════════════════════════════════ */
+.table-page{padding:16px 20px}
+.table-page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.table-page-title{font-size:16px;font-weight:600}
+.table-page-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* Heatmap grid table */
+.hm-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.hm-title{font-size:11px;font-weight:600;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.hm-title-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.hm-wrap{overflow-x:auto}
+
+table.hm{border-collapse:collapse;font-size:9.5px;white-space:nowrap;width:100%}
+table.hm th{
+  color:var(--muted);font-weight:400;padding:3px 4px;text-align:center;
+  border-bottom:1px solid var(--border);background:var(--bg2);
+  position:sticky;top:0;z-index:1;font-size:9px;
+}
+table.hm th.col-pub{text-align:left;min-width:120px;max-width:120px;position:sticky;left:0;background:var(--bg2);z-index:2}
+table.hm th.col-total{background:var(--bg3);color:var(--accent2);font-size:9px;font-weight:600}
+
+table.hm td{padding:2px 3px;text-align:center;border-bottom:1px solid rgba(255,255,255,.025)}
+table.hm td.col-pub{
+  text-align:left;position:sticky;left:0;background:var(--bg2);
+  font-size:9.5px;font-weight:500;color:var(--text);
+  max-width:120px;overflow:hidden;text-overflow:ellipsis;padding:3px 6px;
+}
+table.hm tr:hover td{background:rgba(255,255,255,.02)}
+table.hm tr:hover td.col-pub{background:var(--bg3)}
+
+table.hm tr.hm-total td{border-top:1px solid rgba(255,255,255,.08);font-weight:600}
+table.hm tr.hm-total td.col-pub{color:var(--accent2)}
+table.hm tr.hm-total td{color:var(--accent2)}
+
+/* Heatmap cell */
+.hc{
+  display:inline-block;width:100%;min-width:28px;
+  padding:2px 3px;border-radius:4px;
+  font-size:9px;font-weight:500;text-align:center;
+  line-height:1.5;
+}
+.hc-0{color:rgba(255,255,255,.18);background:transparent}
+.hc-lo{background:rgba(239,68,68,.18);color:#fca5a5}
+.hc-mid{background:rgba(234,179,8,.18);color:#fde68a}
+.hc-hi{background:rgba(34,197,94,.2);color:#86efac}
+/* Total col cells */
+.hc-tot{background:rgba(6,182,212,.12);color:#67e8f9;font-weight:600}
+/* Today col header highlight */
+th.col-today{color:rgba(255,255,255,.5)!important;font-style:italic}
+
 @media(max-width:900px){.sidebar{display:none}.charts-row,.charts-row2{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
@@ -151,7 +209,7 @@ table.pivot.compact td:first-child{font-size:10px;min-width:110px}
 <nav class="sidebar">
   <div class="sidebar-logo">VK <span>Analytics</span></div>
   <div class="sidebar-section">Обзор</div>
-  <div class="sidebar-item active" onclick="onPubChange('all');document.getElementById('pub-select').value='all'">📊 Все паблики</div>
+  <div class="sidebar-item active" id="sb-all" onclick="onPubChange('all');document.getElementById('pub-select').value='all'">📊 Все паблики</div>
   <div class="sidebar-section">Паблики</div>
   <div id="sidebar-pubs"></div>
   <div class="sidebar-footer">
@@ -160,163 +218,170 @@ table.pivot.compact td:first-child{font-size:10px;min-width:110px}
   </div>
 </nav>
 
-<main class="main">
-  <div class="topbar">
-    <div>
-      <div class="topbar-title" id="page-title">Все паблики</div>
-      <div class="topbar-sub" id="page-sub">Загрузка...</div>
-    </div>
-    <div class="controls">
-      <select class="pub-select" id="pub-select" onchange="onPubChange(this.value)">
-        <option value="all">Все паблики</option>
-      </select>
-    </div>
+<div class="main">
+  <!-- Browser-style tabs -->
+  <div class="page-tabs">
+    <div class="page-tab active" id="tab-dash" onclick="switchTab('dash')">📊 Дашборд</div>
+    <div class="page-tab" id="tab-table" onclick="switchTab('table')">📋 Таблица по дням</div>
   </div>
 
-  <!-- Paste banner -->
-  <div id="paste-banner" class="banner banner-cyan" style="display:none">
-    <div style="flex:1">
-      ⚡ <strong>Загрузить данные:</strong> Откройте
-      <a href="https://script.google.com/macros/s/AKfycbyKsIZNPgiDRqqe0RFG39UefQVfRpQ9g_8aHl1Jr0bz-De4MfWyfRHJ7j1FgCGnDxLaAA/exec" target="_blank" style="color:#06b6d4">ссылку API</a>,
-      выделите весь текст (⌘A → ⌘C), вставьте сюда:
-      <div class="paste-row">
-        <textarea class="paste-input" id="paste-input" placeholder="Вставьте JSON сюда..."></textarea>
-        <button class="btn-load" onclick="loadFromPaste()">↑ Загрузить</button>
+  <!-- ══ PAGE: DASHBOARD ══ -->
+  <div class="page active" id="page-dash">
+    <div class="dash-inner">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title" id="page-title">Все паблики</div>
+          <div class="topbar-sub" id="page-sub">Загрузка...</div>
+        </div>
+        <div class="controls">
+          <select class="pub-select" id="pub-select" onchange="onPubChange(this.value)">
+            <option value="all">Все паблики</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="paste-banner" class="banner banner-cyan" style="display:none">
+        <div style="flex:1">
+          ⚡ <strong>Загрузить данные:</strong> Откройте
+          <a href="https://script.google.com/macros/s/AKfycbyKsIZNPgiDRqqe0RFG39UefQVfRpQ9g_8aHl1Jr0bz-De4MfWyfRHJ7j1FgCGnDxLaAA/exec" target="_blank" style="color:#06b6d4">ссылку API</a>,
+          выделите весь текст (⌘A → ⌘C), вставьте сюда:
+          <div class="paste-row">
+            <textarea class="paste-input" id="paste-input" placeholder="Вставьте JSON сюда..."></textarea>
+            <button class="btn-load" onclick="loadFromPaste()">↑ Загрузить</button>
+          </div>
+        </div>
+        <button class="banner-close" onclick="this.parentElement.style.display='none'">×</button>
+      </div>
+      <div id="setup-banner" class="banner banner-purple" style="display:none">
+        <div style="flex:1">🔧 <strong>Подключение:</strong> Расширения → Apps Script → вставьте <code>Code.gs</code> → Развернуть → Веб-приложение (доступ: Все) → скопируйте URL → вставьте в <code>API_URL</code></div>
+        <button class="banner-close" onclick="this.parentElement.style.display='none'">×</button>
+      </div>
+
+      <div class="kpi-section">
+        <div class="kpi-section-label" id="kpi-month-label">Текущий месяц</div>
+        <div class="kpi-row" id="kpi-month"></div>
+      </div>
+      <div class="kpi-section">
+        <div class="kpi-section-label" id="kpi-week-label">Текущая неделя</div>
+        <div class="kpi-row" id="kpi-week"></div>
+      </div>
+      <div class="kpi-section">
+        <div class="kpi-section-label">Вчера vs позавчера</div>
+        <div class="kpi-row" id="kpi-yesterday"></div>
+      </div>
+
+      <div class="charts-row" style="margin-bottom:10px">
+        <div class="card">
+          <div class="card-title">Охват — последние 10 дней <span class="card-badge" id="reach-badge">—</span></div>
+          <div style="position:relative;width:100%;height:255px"><canvas id="reachChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Прирост подписчиков — 10 дней</div>
+          <div style="position:relative;width:100%;height:255px"><canvas id="subsChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-title">
+          Охваты по пабликам — последние 10 дней
+          <label style="font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="compare-top" onchange="renderCompareChart()" checked style="cursor:pointer"> только топ-8
+          </label>
+        </div>
+        <div style="position:relative;width:100%;height:280px"><canvas id="compareChart"></canvas></div>
+        <div id="compare-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+      </div>
+
+      <div class="charts-row" style="margin-bottom:10px">
+        <div class="card">
+          <div class="card-title">Лиды по дням — последние 10 дней <span class="card-badge" id="leads-badge">—</span></div>
+          <div style="position:relative;width:100%;height:220px"><canvas id="leadsChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Охват на 1 лида — последние 10 дней</div>
+          <div style="position:relative;width:100%;height:220px"><canvas id="cplChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="charts-row2" style="margin-bottom:10px">
+        <div class="card">
+          <div class="card-title">Топ пабликов — последние 10 дней</div>
+          <div class="tbl-wrap">
+            <table class="rt"><thead><tr><th>#</th><th>Паблик</th><th>Охват</th><th>Подписчики</th><th>Прирост пдп</th><th>Посещений</th><th>ER</th></tr></thead>
+            <tbody id="rank-10"></tbody></table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Топ пабликов — вчера</div>
+          <div class="tbl-wrap">
+            <table class="rt"><thead><tr><th>#</th><th>Паблик</th><th>Охват</th><th>Подписчики</th><th>Прирост пдп</th><th>Посещений</th><th>ER</th></tr></thead>
+            <tbody id="rank-yesterday"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-title">
+          Охват по паблику и периоду
+          <div style="display:flex;gap:6px">
+            <button class="pivot-mode-btn active" id="btn-week" onclick="setPivotMode('week')">Недели</button>
+            <button class="pivot-mode-btn" id="btn-month" onclick="setPivotMode('month')">Месяцы</button>
+          </div>
+        </div>
+        <div class="pivot-wrap"><table class="pivot" id="pivot-table"></table></div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-title">
+          Клипы по паблику и периоду
+          <div style="display:flex;gap:6px">
+            <button class="pivot-mode-btn active" id="vbtn-daily" onclick="setVideoMode('daily')">10 дней</button>
+            <button class="pivot-mode-btn" id="vbtn-weekly" onclick="setVideoMode('weekly')">5 недель</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto"><table class="pivot compact" id="videos-table"></table></div>
       </div>
     </div>
-    <button class="banner-close" onclick="this.parentElement.style.display='none'">×</button>
   </div>
 
-  <!-- Setup banner -->
-  <div id="setup-banner" class="banner banner-purple" style="display:none">
-    <div style="flex:1">🔧 <strong>Подключение:</strong> Расширения → Apps Script → вставьте <code>Code.gs</code> → Развернуть → Веб-приложение (доступ: Все) → скопируйте URL → вставьте в <code>API_URL</code> в <code>index.html</code></div>
-    <button class="banner-close" onclick="this.parentElement.style.display='none'">×</button>
-  </div>
-
-  <!-- KPI: месяц -->
-  <div class="kpi-section">
-    <div class="kpi-section-label" id="kpi-month-label">Текущий месяц</div>
-    <div class="kpi-row" id="kpi-month"></div>
-  </div>
-
-  <!-- KPI: неделя -->
-  <div class="kpi-section">
-    <div class="kpi-section-label" id="kpi-week-label">Текущая неделя</div>
-    <div class="kpi-row" id="kpi-week"></div>
-  </div>
-
-  <!-- KPI: вчера -->
-  <div class="kpi-section">
-    <div class="kpi-section-label">Вчера vs позавчера</div>
-    <div class="kpi-row" id="kpi-yesterday"></div>
-  </div>
-
-  <!-- Charts -->
-  <div class="charts-row" style="margin-bottom:10px">
-    <div class="card">
-      <div class="card-title">Охват — последние 10 дней <span class="card-badge" id="reach-badge">—</span></div>
-      <div style="position:relative;width:100%;height:255px">
-        <canvas id="reachChart"></canvas>
+  <!-- ══ PAGE: TABLE BY DAYS ══ -->
+  <div class="page" id="page-table">
+    <div class="table-page">
+      <div class="table-page-header">
+        <div>
+          <div class="table-page-title">Таблица по дням</div>
+          <div class="table-page-sub" id="table-page-sub">Последние 20 дней · охваты и лиды по каждому паблику</div>
+        </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Прирост подписчиков — 10 дней</div>
-      <div style="position:relative;width:100%;height:255px">
-        <canvas id="subsChart"></canvas>
+
+      <!-- Reach heatmap -->
+      <div class="hm-card">
+        <div class="hm-title">
+          <span class="hm-title-dot" style="background:#7c3aed"></span>
+          Охват по паблику и дню
+          <span style="font-size:10px;color:var(--muted);font-weight:400">— последние 20 дней</span>
+        </div>
+        <div class="hm-wrap">
+          <table class="hm" id="hm-reach"></table>
+        </div>
+      </div>
+
+      <!-- Leads heatmap -->
+      <div class="hm-card">
+        <div class="hm-title">
+          <span class="hm-title-dot" style="background:#ec4899"></span>
+          Лиды по паблику и дню
+          <span style="font-size:10px;color:var(--muted);font-weight:400">— последние 20 дней</span>
+        </div>
+        <div class="hm-wrap">
+          <table class="hm" id="hm-leads"></table>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Multi-line comparison chart -->
-  <div class="card" style="margin-bottom:10px">
-    <div class="card-title">
-      Охваты по пабликам — последние 10 дней
-      <div style="display:flex;gap:6px;align-items:center">
-        <label style="font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
-          <input type="checkbox" id="compare-top" onchange="renderCompareChart()" checked style="cursor:pointer">
-          только топ-8
-        </label>
-      </div>
-    </div>
-    <div style="position:relative;width:100%;height:280px">
-      <canvas id="compareChart"></canvas>
-    </div>
-    <div id="compare-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
-  </div>
-
-  <!-- Leads charts -->
-  <div class="charts-row" style="margin-bottom:10px">
-    <div class="card">
-      <div class="card-title">Лиды по дням — последние 10 дней <span class="card-badge" id="leads-badge">—</span></div>
-      <div style="position:relative;width:100%;height:220px">
-        <canvas id="leadsChart"></canvas>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Охват на 1 лида — последние 10 дней</div>
-      <div style="position:relative;width:100%;height:220px">
-        <canvas id="cplChart"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <!-- Two tables side by side -->
-  <div class="charts-row2" style="margin-bottom:10px">
-    <div class="card">
-      <div class="card-title">Топ пабликов — последние 10 дней</div>
-      <div class="tbl-wrap">
-        <table class="rt">
-          <thead><tr>
-            <th>#</th><th>Паблик</th><th>Охват</th><th>Подписчики</th><th>Прирост пдп</th><th>Посещений</th><th>ER</th>
-          </tr></thead>
-          <tbody id="rank-10"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Топ пабликов — вчера</div>
-      <div class="tbl-wrap">
-        <table class="rt">
-          <thead><tr>
-            <th>#</th><th>Паблик</th><th>Охват</th><th>Подписчики</th><th>Прирост пдп</th><th>Посещений</th><th>ER</th>
-          </tr></thead>
-          <tbody id="rank-yesterday"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Pivot table -->
-  <div class="card" style="margin-bottom:10px">
-    <div class="card-title">
-      Охват по паблику и периоду
-      <div style="display:flex;gap:6px">
-        <button class="pivot-mode-btn active" id="btn-week" onclick="setPivotMode('week')">Недели</button>
-        <button class="pivot-mode-btn" id="btn-month" onclick="setPivotMode('month')">Месяцы</button>
-      </div>
-    </div>
-    <div class="pivot-wrap">
-      <table class="pivot" id="pivot-table"></table>
-    </div>
-  </div>
-
-
-  <!-- Videos table with toggle -->
-  <div class="card" style="margin-bottom:10px">
-    <div class="card-title">
-      Клипы по паблику и периоду
-      <div style="display:flex;gap:6px">
-        <button class="pivot-mode-btn active" id="vbtn-daily" onclick="setVideoMode('daily')">10 дней</button>
-        <button class="pivot-mode-btn" id="vbtn-weekly" onclick="setVideoMode('weekly')">5 недель</button>
-      </div>
-    </div>
-    <div style="overflow-x:auto">
-      <table class="pivot compact" id="videos-table"></table>
-    </div>
-  </div>
-
-</main>
-</div>
+</div><!-- .main -->
+</div><!-- .app -->
 
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyKsIZNPgiDRqqe0RFG39UefQVfRpQ9g_8aHl1Jr0bz-De4MfWyfRHJ7j1FgCGnDxLaAA/exec';
@@ -325,7 +390,19 @@ let allData = [];
 let allLeads = [];
 let currentPub = 'all';
 let pivotMode = 'week';
+let videoMode = 'daily';
 let charts = {};
+let currentTab = 'dash';
+
+// ── Tab switching ──
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.page-tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('page-' + tab).classList.add('active');
+  if (tab === 'table' && allData.length) renderHeatmaps();
+}
 
 // ── Helpers ──
 const fmtNum = (n, abbrev=false) => {
@@ -357,25 +434,21 @@ const erBadge = er => {
   return `<span class="er-badge ${cls}">${v.toFixed(1)}%</span>`;
 };
 const destroyChart = id => { if (charts[id]) { try{charts[id].destroy()}catch(e){} delete charts[id]; }};
-
-// ── Corrections ──
 const applyCorrections = data => data.map(r => {
   if (r.pub && r.pub.trim() === 'Бесплатные МК' && r.pdp > 9500) return {...r, pdp: r.pdp - 9500};
   return r;
 });
 
-// ── Parse builtin data (fallback) ──
-function parseBuiltinData() { return []; }
+const todayStr = () => {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+};
 
-// ── Date helpers ──
 function getLatestDate() {
-  // Исключаем сегодня — данные снимаются за вчера
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const ts = todayStr();
   const dates = allData.map(r => r.date).filter(Boolean).sort();
-  // Берём последнюю дату, которая не сегодня
   for (let i = dates.length - 1; i >= 0; i--) {
-    if (dates[i] < todayStr) return dates[i];
+    if (dates[i] < ts) return dates[i];
   }
   return dates[dates.length - 1];
 }
@@ -386,18 +459,16 @@ function getDatesBefore(refDate, n) {
   return all.slice(Math.max(0, idx - n + 1), idx + 1);
 }
 function getCurrentMonthDates() {
-  const latest = getLatestDate();
-  if (!latest) return [];
+  const latest = getLatestDate(); if (!latest) return [];
   const d = parseDate(latest);
   const month = d.getMonth(); const year = d.getFullYear();
-  return [...new Set(allData.map(r => r.date))].filter(d => {
-    const pd = parseDate(d);
+  return [...new Set(allData.map(r => r.date))].filter(ds => {
+    const pd = parseDate(ds);
     return pd && pd.getMonth() === month && pd.getFullYear() === year;
   }).sort();
 }
 function getCurrentWeekDates() {
-  const latest = getLatestDate();
-  if (!latest) return [];
+  const latest = getLatestDate(); if (!latest) return [];
   const d = parseDate(latest);
   const day = d.getDay() || 7;
   const mon = new Date(d); mon.setDate(d.getDate() - day + 1);
@@ -407,11 +478,9 @@ function getCurrentWeekDates() {
   }).sort();
 }
 
-// ── Aggregate data for period ──
 function aggByPub(dates) {
   const map = {};
-  const filtered = allData.filter(r => dates.includes(r.date) && r.pub);
-  filtered.forEach(r => {
+  allData.filter(r => dates.includes(r.date) && r.pub).forEach(r => {
     if (!map[r.pub]) map[r.pub] = {pub:r.pub, reach:0, pdp:null, pdpGrowth:0, visits:0, likes:0, comments:0, shares:0};
     map[r.pub].reach += r.reach || 0;
     if (r.pdp !== null) map[r.pub].pdp = r.pdp;
@@ -430,160 +499,33 @@ function aggByPub(dates) {
 
 function aggTotal(dates) {
   let reach=0, likes=0, comments=0, shares=0, visits=0, videos=0, pdpGrowth=0;
-  // pdp: sum of last known value per pub within period
   const lastPdpPerPub = {};
   const rows = allData.filter(r => dates.includes(r.date) && (currentPub === 'all' || r.pub === currentPub));
   rows.forEach(r => {
     reach += r.reach || 0;
     if (r.pdp !== null && r.pdp !== undefined) lastPdpPerPub[r.pub] = r.pdp;
-    likes += r.likes || 0;
-    comments += r.comments || 0;
-    shares += r.shares || 0;
-    visits += r.visits || 0;
-    videos += r.videos || 0;
-    pdpGrowth += r.pdpGrowth || 0;
+    likes += r.likes || 0; comments += r.comments || 0; shares += r.shares || 0;
+    visits += r.visits || 0; videos += r.videos || 0; pdpGrowth += r.pdpGrowth || 0;
   });
   const pdp = Object.values(lastPdpPerPub).reduce((a,b)=>a+b,0);
   const er = reach > 0 ? ((likes+comments+shares)/reach*100) : 0;
-
-  // Top growing pub by pdpGrowth
   const growthPerPub = {};
-  rows.forEach(r => {
-    if (!growthPerPub[r.pub]) growthPerPub[r.pub] = 0;
-    growthPerPub[r.pub] += r.pdpGrowth || 0;
-  });
+  rows.forEach(r => { if(!growthPerPub[r.pub])growthPerPub[r.pub]=0; growthPerPub[r.pub]+=r.pdpGrowth||0; });
   const topEntry = Object.entries(growthPerPub).sort((a,b)=>b[1]-a[1])[0];
-  const topGrowthPub = topEntry && topEntry[1] > 0 ? {name: topEntry[0], val: topEntry[1]} : {name:'—', val:0};
-
+  const topGrowthPub = topEntry && topEntry[1]>0 ? {name:topEntry[0],val:topEntry[1]} : {name:'—',val:0};
   return {reach, pdp, likes, comments, shares, visits, videos, pdpGrowth, er, topGrowthPub};
 }
 
-// Videos pivot - by pub and date/week
-function getVideosByPubAndDate(dates) {
-  const map = {}, allPubs = new Set();
-  allData.filter(r => dates.includes(r.date) && r.pub && r.videos > 0).forEach(r => {
-    allPubs.add(r.pub);
-    if (!map[r.pub]) map[r.pub] = {};
-    map[r.pub][r.date] = (map[r.pub][r.date]||0) + (r.videos||0);
-  });
-  return {map, pubs: [...allPubs].filter(Boolean)};
-}
-
-function getVideosByPubAndWeek(dates) {
-  const map = {}, allPubs = new Set(), allWeeks = new Set();
-  allData.filter(r => dates.includes(r.date) && r.pub && r.videos > 0).forEach(r => {
-    const wk = getWeekKey(r.date); if (!wk) return;
-    allPubs.add(r.pub); allWeeks.add(wk);
-    if (!map[r.pub]) map[r.pub] = {};
-    map[r.pub][wk] = (map[r.pub][wk]||0) + (r.videos||0);
-  });
-  return {map, pubs: [...allPubs].filter(Boolean), weeks: [...allWeeks]};
-}
-
-let videoMode = 'daily';
-function setVideoMode(mode) {
-  videoMode = mode;
-  document.getElementById('vbtn-daily').classList.toggle('active', mode==='daily');
-  document.getElementById('vbtn-weekly').classList.toggle('active', mode==='weekly');
-  renderVideos();
-}
-
-function renderVideos() {
-  const latest = getLatestDate();
-  if (!latest) return;
-  const allDts = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-
-  if (videoMode === 'daily') {
-    const last10 = getDatesBefore(latest, 10).filter(d => d < todayStr);
-    const shortDates = last10.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
-    const data = allData.filter(r => last10.includes(r.date) && r.pub && r.videos > 0 && (currentPub==='all'||r.pub===currentPub));
-    const pubs = [...new Set(data.map(r=>r.pub))].filter(Boolean);
-    const map = {};
-    data.forEach(r => { if(!map[r.pub])map[r.pub]={}; map[r.pub][r.date]=(map[r.pub][r.date]||0)+(r.videos||0); });
-    const totals = {};
-    last10.forEach((d,i) => { totals[shortDates[i]] = pubs.reduce((s,p)=>s+(map[p]?.[d]||0),0); });
-    renderVideosPivot('videos-table', shortDates, 'Паблик',
-      (pub, col) => { const d=last10[shortDates.indexOf(col)]; return map[pub]?.[d]||0; },
-      pubs, totals
-    );
-  } else {
-    const last5WeeksDates = allDts.filter(d => {
-      const pd=parseDate(d); if(!pd) return false;
-      const latestPd=parseDate(latest);
-      return (latestPd-pd)/(1000*60*60*24) <= 34 && d < todayStr;
-    });
-    const data = allData.filter(r => last5WeeksDates.includes(r.date) && r.pub && r.videos > 0 && (currentPub==='all'||r.pub===currentPub));
-    const pubs = [...new Set(data.map(r=>r.pub))].filter(Boolean);
-    const weekMap = {};
-    const allWeeks = new Set();
-    data.forEach(r => {
-      const wk=getWeekKey(r.date); if(!wk) return;
-      allWeeks.add(wk);
-      if(!weekMap[r.pub])weekMap[r.pub]={};
-      weekMap[r.pub][wk]=(weekMap[r.pub][wk]||0)+(r.videos||0);
-    });
-    const sortedWeeks = [...allWeeks].sort((a,b)=>{
-      const getD=s=>{const p=s.split('–')[0].split('.');return new Date(2026,+p[1]-1,+p[0]);};
-      return getD(a)-getD(b);
-    });
-    const totals = {};
-    sortedWeeks.forEach(wk => { totals[wk]=pubs.reduce((s,p)=>s+(weekMap[p]?.[wk]||0),0); });
-    renderVideosPivot('videos-table', sortedWeeks, 'Паблик',
-      (pub,wk) => weekMap[pub]?.[wk]||0,
-      pubs, totals
-    );
-  }
-}
-
-function renderVideosPivot(tableId, cols, colLabel, getVal, pubs, totals) {
-  const table = document.getElementById(tableId);
-  if (!table) return;
-  table.classList.add('compact');
-  if (!pubs.length) { table.innerHTML = '<tr><td colspan="20" style="text-align:center;color:var(--muted);padding:20px">Нет данных о клипах</td></tr>'; return; }
-
-  // find max for color
-  const allVals = [];
-  pubs.forEach(p => cols.forEach(c => { const v=getVal(p,c); if(v>0) allVals.push(v); }));
-  allVals.sort((a,b)=>a-b);
-  const p33 = allVals[Math.floor(allVals.length*.33)]||1;
-  const p66 = allVals[Math.floor(allVals.length*.66)]||2;
-  const cellCls = v => v===0?'':v<=p33?'er-red':v<=p66?'er-yellow':'er-green';
-
-  let html = `<thead><tr><th>${colLabel}</th>${cols.map(c=>`<th>${c}</th>`).join('')}<th>Итого</th></tr></thead><tbody>`;
-
-  // Total row
-  html += `<tr class="pivot-total"><td>Все паблики</td>${cols.map(c=>`<td><span class="pv" style="color:var(--accent2)">${totals[c]||0}</span></td>`).join('')}<td><span class="pv" style="color:var(--accent2);font-weight:700">${Object.values(totals).reduce((a,b)=>a+b,0)}</span></td></tr>`;
-
-  pubs.forEach(pub => {
-    const tot = cols.reduce((s,c)=>s+(getVal(pub,c)||0),0);
-    html += `<tr><td>${pub}</td>`;
-    cols.forEach(c => {
-      const v = getVal(pub,c)||0;
-      const cls = cellCls(v);
-      html += `<td>${v>0?`<span class="pv ${cls}">${v}</span>`:`<span style="color:rgba(255,255,255,.12)">—</span>`}</td>`;
-    });
-    html += `<td><span class="pv" style="color:var(--muted)">${tot}</span></td></tr>`;
-  });
-  html += '</tbody>';
-  table.innerHTML = html;
-}
-
-// ── KPI block ──
+// ── KPI ──
 function renderKpiRow(elId, curr, prev) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  // Find top growing pub for this period
+  const el = document.getElementById(elId); if (!el) return;
   const topPub = curr.topGrowthPub || {name:'—', val:0};
-
   const metrics = [
     {label:'Охват', val:curr.reach, prev:prev?.reach, color:'#7c3aed', reach:true},
     {label:'Прирост пдп', val:curr.pdpGrowth, prev:prev?.pdpGrowth, color:'#22c55e'},
     {label:'Ср. ER', val:curr.er, prev:prev?.er, color:'#f59e0b', pct:true},
     {label:'Клипов', val:curr.videos, prev:prev?.videos, color:'#ec4899'},
   ];
-
   el.innerHTML = metrics.map(m => `
     <div class="kpi" style="--kpi-color:${m.color}">
       <div class="kpi-label">${m.label}</div>
@@ -595,18 +537,14 @@ function renderKpiRow(elId, curr, prev) {
       <div class="kpi-label">🏆 Топ прирост</div>
       <div class="kpi-value" style="font-size:14px;line-height:1.3">${topPub.name}</div>
       <div class="kpi-delta up">+${fmtNum(topPub.val)} подп.</div>
-    </div>
-  `;
+    </div>`;
 }
 
 // ── Charts ──
 function renderReachChart(dates) {
   destroyChart('reach');
-  const labels = dates.map(d => { const p = d.split('-'); return `${p[2]}.${p[1]}`; });
-  const data = dates.map(date => {
-    const rows = allData.filter(r => r.date === date && (currentPub === 'all' || r.pub === currentPub));
-    return rows.reduce((s,r) => s + (r.reach||0), 0);
-  });
+  const labels = dates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+  const data = dates.map(date => allData.filter(r=>r.date===date&&(currentPub==='all'||r.pub===currentPub)).reduce((s,r)=>s+(r.reach||0),0));
   document.getElementById('reach-badge').textContent = fmtNum(data.reduce((a,b)=>a+b,0)) + ' охват';
   charts['reach'] = new Chart(document.getElementById('reachChart'), {
     data: { labels, datasets: [{
@@ -615,8 +553,7 @@ function renderReachChart(dates) {
       fill:true, tension:.4, pointRadius:3, pointBackgroundColor:'#7c3aed', borderWidth:2,
       _showLabels:true, _labelColor:'rgba(200,180,255,0.7)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>fmtReach(v)
     }]},
-    options: { responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false} },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
       scales: {
         x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},
         y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10},callback:v=>fmtNum(v)},border:{color:'transparent'}}
@@ -627,11 +564,8 @@ function renderReachChart(dates) {
 
 function renderSubsChart(dates) {
   destroyChart('subs');
-  const labels = dates.map(d => { const p = d.split('-'); return `${p[2]}.${p[1]}`; });
-  const data = dates.map(date => {
-    const rows = allData.filter(r => r.date === date && (currentPub === 'all' || r.pub === currentPub));
-    return rows.reduce((s,r) => s + (r.pdpGrowth||0), 0);
-  });
+  const labels = dates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+  const data = dates.map(date => allData.filter(r=>r.date===date&&(currentPub==='all'||r.pub===currentPub)).reduce((s,r)=>s+(r.pdpGrowth||0),0));
   charts['subs'] = new Chart(document.getElementById('subsChart'), {
     type:'bar',
     data: { labels, datasets: [{
@@ -641,8 +575,7 @@ function renderSubsChart(dates) {
       borderWidth:1,
       _showLabels:true, _labelFont:'bold 9px sans-serif', _labelColor:'rgba(100,220,140,0.75)', _labelFmt:v=>v>0?'+'+fmtNum(v):fmtNum(v)
     }]},
-    options: { responsive:true, maintainAspectRatio:false,
-      layout:{ padding:{ top:18 } },
+    options: { responsive:true, maintainAspectRatio:false, layout:{padding:{top:18}},
       plugins:{legend:{display:false}},
       scales: {
         x:{grid:{display:false},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},
@@ -653,20 +586,81 @@ function renderSubsChart(dates) {
 }
 
 function renderRankTable(tbodyId, byPub) {
-  const tbody = document.getElementById(tbodyId);
-  if (!tbody) return;
+  const tbody = document.getElementById(tbodyId); if (!tbody) return;
   if (!byPub.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Нет данных</td></tr>'; return; }
   tbody.innerHTML = byPub.sort((a,b)=>b.reach-a.reach).map((p,i) => `
     <tr>
-      <td>${i+1}</td>
-      <td title="${p.pub}">${p.pub}</td>
-      <td>${fmtReach(p.reach)}</td>
-      <td>${fmtNum(p.pdp)}</td>
-      <td>${p.pdpGrowth > 0 ? `<span class="up">+${fmtNum(p.pdpGrowth)}</span>` : p.pdpGrowth < 0 ? `<span class="dn">${fmtNum(p.pdpGrowth)}</span>` : '<span class="neu">0</span>'}</td>
-      <td>${fmtNum(p.visits)}</td>
-      <td>${erBadge(p.er)}</td>
-    </tr>
-  `).join('');
+      <td>${i+1}</td><td title="${p.pub}">${p.pub}</td>
+      <td>${fmtReach(p.reach)}</td><td>${fmtNum(p.pdp)}</td>
+      <td>${p.pdpGrowth>0?`<span class="up">+${fmtNum(p.pdpGrowth)}</span>`:p.pdpGrowth<0?`<span class="dn">${fmtNum(p.pdpGrowth)}</span>`:'<span class="neu">0</span>'}</td>
+      <td>${fmtNum(p.visits)}</td><td>${erBadge(p.er)}</td>
+    </tr>`).join('');
+}
+
+const COLORS = ['#7c3aed','#06b6d4','#ec4899','#f59e0b','#22c55e','#a78bfa','#38bdf8','#fb923c','#4ade80','#f472b6','#facc15','#34d399','#60a5fa','#c084fc','#f87171','#fbbf24','#86efac','#93c5fd','#e879f9','#fca5a5'];
+
+function renderCompareChart() {
+  destroyChart('compare');
+  const latest = getLatestDate(); if (!latest) return;
+  const ts = todayStr();
+  const last10 = getDatesBefore(latest, 10).filter(d => d < ts);
+  const labels = last10.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+  let pubs = [...new Set(allData.map(r=>r.pub))].filter(Boolean);
+  if (currentPub !== 'all') pubs = pubs.filter(p => p === currentPub);
+  const pubTotals = {};
+  pubs.forEach(pub => { pubTotals[pub]=last10.reduce((s,d)=>s+allData.filter(r=>r.date===d&&r.pub===pub).reduce((a,r)=>a+(r.reach||0),0),0); });
+  pubs = pubs.sort((a,b)=>pubTotals[b]-pubTotals[a]);
+  if (document.getElementById('compare-top')?.checked) pubs = pubs.slice(0,8);
+  const datasets = pubs.map((pub,i) => {
+    const color = COLORS[i%COLORS.length];
+    return { label:pub, data:last10.map(d=>allData.filter(r=>r.date===d&&r.pub===pub).reduce((s,r)=>s+(r.reach||0),0)),
+      borderColor:color, backgroundColor:'transparent', tension:.4, pointRadius:3, pointBackgroundColor:color, borderWidth:2, pointHoverRadius:5 };
+  });
+  charts['compare'] = new Chart(document.getElementById('compareChart'), {
+    type:'line', data:{labels, datasets},
+    options: { responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${fmtNum(ctx.raw)}`}}},
+      scales: {
+        x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},
+        y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10},callback:v=>fmtReach(v)},border:{color:'transparent'}}
+      }
+    }
+  });
+  const legend = document.getElementById('compare-legend');
+  if (legend) legend.innerHTML = pubs.map((pub,i) => `
+    <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:rgba(255,255,255,.7)">
+      <span style="width:20px;height:2px;background:${COLORS[i%COLORS.length]};border-radius:2px;display:inline-block"></span>${pub}
+    </span>`).join('');
+}
+
+function renderLeadsCharts(dates) {
+  destroyChart('leads'); destroyChart('cpl');
+  const ts = todayStr();
+  const cleanDates = dates.filter(d => d < ts);
+  const labels = cleanDates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+  const filteredLeads = currentPub==='all' ? allLeads : allLeads.filter(l=>l.pub===currentPub);
+  const leadsPerDay = cleanDates.map(d => filteredLeads.filter(l=>l.date===d).length);
+  document.getElementById('leads-badge').textContent = leadsPerDay.reduce((a,b)=>a+b,0) + ' лидов';
+  const reachPerDay = cleanDates.map(d => allData.filter(r=>r.date===d&&(currentPub==='all'||r.pub===currentPub)).reduce((s,r)=>s+(r.reach||0),0));
+  const cplPerDay = cleanDates.map((d,i) => leadsPerDay[i]>0?Math.round(reachPerDay[i]/leadsPerDay[i]):null);
+  charts['leads'] = new Chart(document.getElementById('leadsChart'), {
+    data:{labels, datasets:[{type:'bar',data:leadsPerDay,
+      backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,220);g.addColorStop(0,'rgba(236,72,153,0.8)');g.addColorStop(1,'rgba(236,72,153,0.2)');return g;},
+      borderColor:'#ec4899',borderWidth:1,borderRadius:5,borderSkipped:false,
+      _showLabels:true,_labelColor:'rgba(255,180,220,0.8)',_labelFont:'bold 9px sans-serif',_labelFmt:v=>v
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:18}},plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}}}}
+  });
+  charts['cpl'] = new Chart(document.getElementById('cplChart'), {
+    data:{labels,datasets:[{type:'line',data:cplPerDay,borderColor:'#f59e0b',
+      backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,220);g.addColorStop(0,'rgba(245,158,11,0.3)');g.addColorStop(1,'rgba(245,158,11,0)');return g;},
+      fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f59e0b',borderWidth:2,spanGaps:true,
+      _showLabels:true,_labelColor:'rgba(255,210,100,0.8)',_labelFont:'bold 9px sans-serif',_labelFmt:v=>fmtReach(v)
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmtNum(ctx.raw)} охвата/лид`}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10},callback:v=>fmtReach(v)},border:{color:'transparent'}}}}
+  });
 }
 
 // ── Pivot ──
@@ -676,7 +670,6 @@ function setPivotMode(mode) {
   document.getElementById('btn-month').classList.toggle('active', mode==='month');
   renderPivot();
 }
-
 function getWeekKey(dateStr) {
   const d = parseDate(dateStr); if (!d) return null;
   const day = d.getDay()||7;
@@ -689,143 +682,214 @@ function getMonthKey(dateStr) {
   const d = parseDate(dateStr); if (!d) return null;
   return d.toLocaleDateString('ru',{month:'short',year:'2-digit'});
 }
-
 function renderPivot() {
-  const table = document.getElementById('pivot-table');
-  if (!table) return;
+  const table = document.getElementById('pivot-table'); if (!table) return;
   let data = allData.filter(r => r.reach !== null && r.pub);
   if (currentPub !== 'all') data = data.filter(r => r.pub === currentPub);
-
-  const getKey = pivotMode === 'week' ? getWeekKey : getMonthKey;
+  const getKey = pivotMode==='week' ? getWeekKey : getMonthKey;
   const periodMap = {}, allPeriods = new Set(), allPubs = new Set();
-
   data.forEach(r => {
     const key = getKey(r.date); if (!key) return;
     allPeriods.add(key); allPubs.add(r.pub);
     if (!periodMap[r.pub]) periodMap[r.pub] = {};
     periodMap[r.pub][key] = (periodMap[r.pub][key]||0) + (r.reach||0);
   });
-
-  // Sort periods
   const sortedPeriods = [...allPeriods].sort((a,b) => {
     const getD = s => { const p=s.split('–')[0].split('.'); return p.length===2?new Date(2026,+p[1]-1,+p[0]):new Date(s); };
     return getD(a)-getD(b);
   });
-
-  // Sort pubs by total
   const sortedPubs = [...allPubs].filter(Boolean).sort((a,b) => {
-    const tA = sortedPeriods.reduce((s,p)=>s+(periodMap[a]?.[p]||0),0);
-    const tB = sortedPeriods.reduce((s,p)=>s+(periodMap[b]?.[p]||0),0);
+    const tA=sortedPeriods.reduce((s,p)=>s+(periodMap[a]?.[p]||0),0);
+    const tB=sortedPeriods.reduce((s,p)=>s+(periodMap[b]?.[p]||0),0);
     return tB-tA;
   });
-
-  // Find all values for color scaling
   const allVals = [];
   sortedPubs.forEach(pub => sortedPeriods.forEach(p => { const v=periodMap[pub]?.[p]||0; if(v>0) allVals.push(v); }));
   allVals.sort((a,b)=>a-b);
-  const p33 = allVals[Math.floor(allVals.length*.33)]||1;
-  const p66 = allVals[Math.floor(allVals.length*.66)]||2;
-
-  const cellClass = v => v === 0 ? '' : v <= p33 ? 'er-red' : v <= p66 ? 'er-yellow' : 'er-green';
-
-  // Period totals
-  const pTotals = {}; let grand = 0;
+  const p33=allVals[Math.floor(allVals.length*.33)]||1, p66=allVals[Math.floor(allVals.length*.66)]||2;
+  const cellClass = v => v===0?'':v<=p33?'er-red':v<=p66?'er-yellow':'er-green';
+  const pTotals = {}; let grand=0;
   sortedPeriods.forEach(p => { pTotals[p]=sortedPubs.reduce((s,pub)=>s+(periodMap[pub]?.[p]||0),0); grand+=pTotals[p]; });
-
   let html = `<thead><tr><th>Паблик</th>${sortedPeriods.map(p=>`<th>${p}</th>`).join('')}<th>Итого</th></tr></thead><tbody>`;
-
-  // Total row
   html += `<tr class="pivot-total"><td>Все паблики</td>${sortedPeriods.map(p=>`<td><span class="pv" style="color:var(--accent2)">${fmtReach(pTotals[p])}</span></td>`).join('')}<td><span class="pv" style="color:var(--accent2);font-weight:700">${fmtReach(grand)}</span></td></tr>`;
-
   sortedPubs.forEach(pub => {
-    const total = sortedPeriods.reduce((s,p)=>s+(periodMap[pub]?.[p]||0),0);
+    const total=sortedPeriods.reduce((s,p)=>s+(periodMap[pub]?.[p]||0),0);
     html += `<tr><td>${pub}</td>`;
     sortedPeriods.forEach(p => {
-      const v = periodMap[pub]?.[p]||0;
-      const cls = cellClass(v);
+      const v=periodMap[pub]?.[p]||0, cls=cellClass(v);
       html += `<td>${v>0?`<span class="pv ${cls}">${fmtNum(v)}</span>`:`<span style="color:rgba(255,255,255,.12)">—</span>`}</td>`;
     });
     html += `<td><span class="pv" style="color:var(--muted)">${fmtNum(total)}</span></td></tr>`;
   });
-
-  html += '</tbody>';
-  table.innerHTML = html;
+  table.innerHTML = html + '</tbody>';
 }
 
-// ── Main render ──
-function render() {
-  const latest = getLatestDate();
-  if (!latest) return;
-
-  // Dates
-  const last10 = getDatesBefore(latest, 10);
-  const monthDates = getCurrentMonthDates();
-  const weekDates = getCurrentWeekDates();
-
-  // latest = вчера (последняя дата с данными, сегодня исключён)
-  // yesterday = latest, dayBefore = предыдущая дата
-  const allDates = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
-  const latestIdx = allDates.indexOf(latest);
-  const yesterday = latest; // latest уже исключает сегодня
-  const dayBefore = latestIdx > 0 ? allDates[latestIdx-1] : null;
-
-  // Previous month/week for deltas
-  const prevMonthDates = (() => {
-    const d = parseDate(monthDates[0]); if (!d) return [];
-    d.setMonth(d.getMonth()-1);
-    return allDates.filter(ds => { const pd=parseDate(ds); return pd&&pd.getMonth()===d.getMonth()&&pd.getFullYear()===d.getFullYear(); });
-  })();
-  const prevWeekDates = (() => {
-    if (!weekDates[0]) return [];
-    const d = parseDate(weekDates[0]); d.setDate(d.getDate()-7);
-    const end = new Date(d); end.setDate(d.getDate()+6);
-    return allDates.filter(ds => { const pd=parseDate(ds); return pd&&pd>=d&&pd<=end; });
-  })();
-
-  // Subtitles
-  const monthName = parseDate(latest)?.toLocaleDateString('ru',{month:'long',year:'numeric'}) || '';
-  document.getElementById('kpi-month-label').textContent = `Текущий месяц — ${monthName} (${monthDates.length} дней)`;
-  document.getElementById('kpi-week-label').textContent = `Текущая неделя (${weekDates.length} дней)`;
-  document.getElementById('page-sub').textContent = `${allDates.length} дней · последние данные: ${latest.split('-').reverse().join('.')}`;
-
-  // KPI rows
-  renderKpiRow('kpi-month', aggTotal(monthDates), prevMonthDates.length ? aggTotal(prevMonthDates) : null);
-  renderKpiRow('kpi-week', aggTotal(weekDates), prevWeekDates.length ? aggTotal(prevWeekDates) : null);
-
-  // Yesterday KPI
-  if (yesterday) {
-    const yd = aggTotal([yesterday]);
-    const pd = dayBefore ? aggTotal([dayBefore]) : null;
-    renderKpiRow('kpi-yesterday', yd, pd);
-  }
-
-  // Charts (last 10 days) — exclude today
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const last10clean = last10.filter(d => d < todayStr);
-  renderReachChart(last10clean);
-  renderSubsChart(last10clean);
-
-  // Tables
-  const byPub10 = aggByPub(last10).filter(p => currentPub === 'all' || p.pub === currentPub);
-  renderRankTable('rank-10', byPub10);
-
-  if (yesterday) {
-    const byPubYd = aggByPub([yesterday]).filter(p => currentPub === 'all' || p.pub === currentPub);
-    renderRankTable('rank-yesterday', byPubYd);
-  }
-
-  // Pivot
-  renderPivot();
-
-  // Leads charts
-  renderLeadsCharts(last10);
-
-  // Compare chart
-  renderCompareChart();
-
-  // Videos table
+// ── Videos pivot ──
+function setVideoMode(mode) {
+  videoMode = mode;
+  document.getElementById('vbtn-daily').classList.toggle('active', mode==='daily');
+  document.getElementById('vbtn-weekly').classList.toggle('active', mode==='weekly');
   renderVideos();
+}
+function renderVideos() {
+  const latest = getLatestDate(); if (!latest) return;
+  const allDts = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
+  const ts = todayStr();
+  if (videoMode === 'daily') {
+    const last10 = getDatesBefore(latest,10).filter(d=>d<ts);
+    const shortDates = last10.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+    const data = allData.filter(r=>last10.includes(r.date)&&r.pub&&r.videos>0&&(currentPub==='all'||r.pub===currentPub));
+    const pubs = [...new Set(data.map(r=>r.pub))].filter(Boolean);
+    const map = {};
+    data.forEach(r => { if(!map[r.pub])map[r.pub]={}; map[r.pub][r.date]=(map[r.pub][r.date]||0)+(r.videos||0); });
+    const totals = {};
+    last10.forEach((d,i) => { totals[shortDates[i]]=pubs.reduce((s,p)=>s+(map[p]?.[d]||0),0); });
+    renderVideosPivot('videos-table', shortDates, 'Паблик', (pub,col)=>{const d=last10[shortDates.indexOf(col)];return map[pub]?.[d]||0;}, pubs, totals);
+  } else {
+    const last5WeeksDates = allDts.filter(d => {
+      const pd=parseDate(d); if(!pd) return false;
+      const latestPd=parseDate(latest);
+      return (latestPd-pd)/(1000*60*60*24)<=34 && d<ts;
+    });
+    const data = allData.filter(r=>last5WeeksDates.includes(r.date)&&r.pub&&r.videos>0&&(currentPub==='all'||r.pub===currentPub));
+    const pubs = [...new Set(data.map(r=>r.pub))].filter(Boolean);
+    const weekMap = {}; const allWeeks = new Set();
+    data.forEach(r => { const wk=getWeekKey(r.date); if(!wk) return; allWeeks.add(wk); if(!weekMap[r.pub])weekMap[r.pub]={}; weekMap[r.pub][wk]=(weekMap[r.pub][wk]||0)+(r.videos||0); });
+    const sortedWeeks = [...allWeeks].sort((a,b)=>{ const getD=s=>{const p=s.split('–')[0].split('.');return new Date(2026,+p[1]-1,+p[0]);}; return getD(a)-getD(b); });
+    const totals = {};
+    sortedWeeks.forEach(wk => { totals[wk]=pubs.reduce((s,p)=>s+(weekMap[p]?.[wk]||0),0); });
+    renderVideosPivot('videos-table', sortedWeeks, 'Паблик', (pub,wk)=>weekMap[pub]?.[wk]||0, pubs, totals);
+  }
+}
+function renderVideosPivot(tableId, cols, colLabel, getVal, pubs, totals) {
+  const table = document.getElementById(tableId); if (!table) return;
+  table.classList.add('compact');
+  if (!pubs.length) { table.innerHTML = '<tr><td colspan="20" style="text-align:center;color:var(--muted);padding:20px">Нет данных о клипах</td></tr>'; return; }
+  const allVals = []; pubs.forEach(p=>cols.forEach(c=>{const v=getVal(p,c);if(v>0)allVals.push(v);}));
+  allVals.sort((a,b)=>a-b);
+  const p33=allVals[Math.floor(allVals.length*.33)]||1, p66=allVals[Math.floor(allVals.length*.66)]||2;
+  const cellCls = v => v===0?'':v<=p33?'er-red':v<=p66?'er-yellow':'er-green';
+  let html = `<thead><tr><th>${colLabel}</th>${cols.map(c=>`<th>${c}</th>`).join('')}<th>Итого</th></tr></thead><tbody>`;
+  html += `<tr class="pivot-total"><td>Все паблики</td>${cols.map(c=>`<td><span class="pv" style="color:var(--accent2)">${totals[c]||0}</span></td>`).join('')}<td><span class="pv" style="color:var(--accent2);font-weight:700">${Object.values(totals).reduce((a,b)=>a+b,0)}</span></td></tr>`;
+  pubs.forEach(pub => {
+    const tot=cols.reduce((s,c)=>s+(getVal(pub,c)||0),0);
+    html += `<tr><td>${pub}</td>`;
+    cols.forEach(c => { const v=getVal(pub,c)||0, cls=cellCls(v); html += `<td>${v>0?`<span class="pv ${cls}">${v}</span>`:`<span style="color:rgba(255,255,255,.12)">—</span>`}</td>`; });
+    html += `<td><span class="pv" style="color:var(--muted)">${tot}</span></td></tr>`;
+  });
+  table.innerHTML = html + '</tbody>';
+}
+
+// ═══════════════════════════════════════
+// HEATMAP TABLES (new Table page)
+// ═══════════════════════════════════════
+function renderHeatmaps() {
+  const latest = getLatestDate(); if (!latest) return;
+  const ts = todayStr();
+
+  // Last 20 calendar days with data, newest on the right, today excluded
+  const allDates = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
+  const last20 = getDatesBefore(latest, 20).filter(d => d < ts);
+
+  // Column labels: DD.MM, newest rightmost
+  const colLabels = last20.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+
+  // All pubs sorted by total reach over period
+  let pubs = [...new Set(allData.map(r=>r.pub))].filter(Boolean);
+  const reachTotByPub = {};
+  pubs.forEach(pub => { reachTotByPub[pub]=last20.reduce((s,d)=>s+allData.filter(r=>r.date===d&&r.pub===pub).reduce((a,r)=>a+(r.reach||0),0),0); });
+  pubs = pubs.sort((a,b)=>reachTotByPub[b]-reachTotByPub[a]);
+
+  // ── Reach heatmap ──
+  // Build value matrix
+  const reachMatrix = {}; // pub -> date -> value
+  pubs.forEach(pub => {
+    reachMatrix[pub] = {};
+    last20.forEach(d => {
+      reachMatrix[pub][d] = allData.filter(r=>r.date===d&&r.pub===pub).reduce((s,r)=>s+(r.reach||0),0);
+    });
+  });
+  // Col totals
+  const reachColTot = {};
+  last20.forEach(d => { reachColTot[d] = pubs.reduce((s,pub)=>s+(reachMatrix[pub][d]||0),0); });
+
+  // Color thresholds per pub (relative within each pub row)
+  function hmColor(val, lo, hi) {
+    if (!val || val === 0) return 'hc-0';
+    if (val <= lo) return 'hc-lo';
+    if (val <= hi) return 'hc-mid';
+    return 'hc-hi';
+  }
+
+  function buildHmTable(tableId, pubs, dates, colLabels, getVal, colTotals, fmtCell, accentColor) {
+    const table = document.getElementById(tableId); if (!table) return;
+
+    // global percentiles for color
+    const allVals = [];
+    pubs.forEach(pub => dates.forEach(d => { const v=getVal(pub,d); if(v>0) allVals.push(v); }));
+    allVals.sort((a,b)=>a-b);
+    const p33 = allVals[Math.floor(allVals.length*.33)] || 1;
+    const p66 = allVals[Math.floor(allVals.length*.66)] || 2;
+
+    let html = `<thead><tr>
+      <th class="col-pub">Паблик</th>
+      <th class="col-total">Итого</th>
+      ${colLabels.map(lb=>`<th>${lb}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+    // Total row
+    const grandTotal = dates.reduce((s,d)=>s+(colTotals[d]||0),0);
+    html += `<tr class="hm-total">
+      <td class="col-pub">Все паблики</td>
+      <td><span class="hc hc-tot">${fmtCell(grandTotal)}</span></td>
+      ${dates.map(d=>`<td><span class="hc hc-tot">${fmtCell(colTotals[d]||0)}</span></td>`).join('')}
+    </tr>`;
+
+    pubs.forEach(pub => {
+      const rowTotal = dates.reduce((s,d)=>s+(getVal(pub,d)||0),0);
+      html += `<tr>
+        <td class="col-pub" title="${pub}">${pub}</td>
+        <td><span class="hc" style="background:rgba(6,182,212,.1);color:#67e8f9;font-weight:600">${fmtCell(rowTotal)}</span></td>
+        ${dates.map(d => {
+          const v = getVal(pub, d) || 0;
+          const cls = hmColor(v, p33, p66);
+          return `<td>${v > 0 ? `<span class="hc ${cls}">${fmtCell(v)}</span>` : `<span class="hc hc-0">—</span>`}</td>`;
+        }).join('')}
+      </tr>`;
+    });
+
+    html += '</tbody>';
+    table.innerHTML = html;
+  }
+
+  buildHmTable('hm-reach', pubs, last20, colLabels,
+    (pub, d) => reachMatrix[pub][d] || 0,
+    reachColTot,
+    v => fmtReach(v),
+    '#7c3aed'
+  );
+
+  // ── Leads heatmap ──
+  const leadsMatrix = {};
+  pubs.forEach(pub => {
+    leadsMatrix[pub] = {};
+    last20.forEach(d => { leadsMatrix[pub][d] = allLeads.filter(l=>l.date===d&&l.pub===pub).length; });
+  });
+  const leadsColTot = {};
+  last20.forEach(d => { leadsColTot[d] = pubs.reduce((s,pub)=>s+(leadsMatrix[pub][d]||0),0); });
+
+  // Only pubs that have at least 1 lead in period
+  const leadsPubs = pubs.filter(pub => last20.some(d=>(leadsMatrix[pub][d]||0)>0));
+
+  buildHmTable('hm-leads', leadsPubs, last20, colLabels,
+    (pub, d) => leadsMatrix[pub][d] || 0,
+    leadsColTot,
+    v => v || 0,
+    '#ec4899'
+  );
+
+  document.getElementById('table-page-sub').textContent =
+    `${last20.length} дней · охваты и лиды по каждому паблику · последние данные: ${latest.split('-').reverse().join('.')}`;
 }
 
 // ── Sidebar ──
@@ -846,15 +910,14 @@ function buildSidebar() {
 
 function onPubChange(val) {
   currentPub = val;
-  document.getElementById('page-title').textContent = val === 'all' ? 'Все паблики' : val;
+  document.getElementById('page-title').textContent = val==='all' ? 'Все паблики' : val;
   document.querySelectorAll('.sidebar-item').forEach(el => el.classList.toggle('active', el.textContent===val||(val==='all'&&el.textContent==='📊 Все паблики')));
   render();
 }
 
-// ── Status ──
 function setStatus(type, text) {
   const dot = document.getElementById('dot');
-  dot.className = 'dot' + (type==='loading'?' loading':type==='err'?' err':'');
+  dot.className = 'dot'+(type==='loading'?' loading':type==='err'?' err':'');
   document.getElementById('status-text').textContent = text;
 }
 
@@ -872,206 +935,79 @@ function loadViaJsonp(url) {
   });
 }
 
-// ── Reload ──
 function reloadData() {
-  allData = [];
-  allLeads = []; currentPub = 'all';
+  allData=[]; allLeads=[]; currentPub='all';
   Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}});
-  charts = {};
+  charts={};
   document.getElementById('pub-select').value='all';
   init();
 }
 
-// ── Paste ──
 function loadFromPaste() {
   try {
     const json = JSON.parse(document.getElementById('paste-input').value.trim());
     const arr = json.data || json;
     if (!Array.isArray(arr)) throw new Error('bad');
     allData = applyCorrections(arr);
+    allLeads = json.leads || [];
     setStatus('ok','Данные загружены ✓');
     document.getElementById('paste-banner').style.display='none';
     buildSidebar(); render();
+    if (currentTab==='table') renderHeatmaps();
   } catch(e) { alert('Ошибка: вставьте корректный JSON'); }
 }
 
-// ── Compare chart ──
-const COLORS = [
-  '#7c3aed','#06b6d4','#ec4899','#f59e0b','#22c55e',
-  '#a78bfa','#38bdf8','#fb923c','#4ade80','#f472b6',
-  '#facc15','#34d399','#60a5fa','#c084fc','#f87171',
-  '#fbbf24','#86efac','#93c5fd','#e879f9','#fca5a5'
-];
-
-function renderCompareChart() {
-  destroyChart('compare');
-  const latest = getLatestDate();
-  if (!latest) return;
-
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const last10 = getDatesBefore(latest, 10).filter(d => d < todayStr);
-  const labels = last10.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
-
-  // Get all pubs
-  let pubs = [...new Set(allData.map(r=>r.pub))].filter(Boolean);
-  if (currentPub !== 'all') pubs = pubs.filter(p => p === currentPub);
-
-  // Calc total reach per pub for sorting
-  const pubTotals = {};
-  pubs.forEach(pub => {
-    pubTotals[pub] = last10.reduce((s,d) => {
-      return s + allData.filter(r=>r.date===d&&r.pub===pub).reduce((a,r)=>a+(r.reach||0),0);
-    }, 0);
-  });
-  pubs = pubs.sort((a,b) => pubTotals[b]-pubTotals[a]);
-
-  const onlyTop = document.getElementById('compare-top')?.checked;
-  if (onlyTop) pubs = pubs.slice(0, 8);
-
-  const datasets = pubs.map((pub, i) => {
-    const color = COLORS[i % COLORS.length];
-    const data = last10.map(d =>
-      allData.filter(r=>r.date===d&&r.pub===pub).reduce((s,r)=>s+(r.reach||0),0)
-    );
-    return {
-      label: pub, data, borderColor: color,
-      backgroundColor: 'transparent',
-      tension: 0.4, pointRadius: 3,
-      pointBackgroundColor: color,
-      borderWidth: 2, pointHoverRadius: 5
-    };
-  });
-
-  charts['compare'] = new Chart(document.getElementById('compareChart'), {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => ` ${ctx.dataset.label}: ${fmtNum(ctx.raw)}`
-          }
-        }
-      },
-      scales: {
-        x: { grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} },
-        y: { grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10},callback:v=>fmtReach(v)}, border:{color:'transparent'} }
-      }
-    }
-  });
-
-  // Custom legend
-  const legend = document.getElementById('compare-legend');
-  if (legend) {
-    legend.innerHTML = pubs.map((pub,i) => `
-      <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:rgba(255,255,255,.7)">
-        <span style="width:20px;height:2px;background:${COLORS[i%COLORS.length]};border-radius:2px;display:inline-block"></span>
-        ${pub}
-      </span>
-    `).join('');
-  }
-}
-
-// ── Leads charts ──
-function renderLeadsCharts(dates) {
-  destroyChart('leads');
-  destroyChart('cpl');
-
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const cleanDates = dates.filter(d => d < todayStr);
-  const labels = cleanDates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
-
-  // Filter leads by pub
-  const filteredLeads = currentPub === 'all'
-    ? allLeads
-    : allLeads.filter(l => l.pub === currentPub);
-
-  // Leads per day
-  const leadsPerDay = cleanDates.map(d => filteredLeads.filter(l => l.date === d).length);
-  const totalLeads = leadsPerDay.reduce((a,b)=>a+b,0);
-  document.getElementById('leads-badge').textContent = totalLeads + ' лидов';
-
-  // Reach per day
-  const reachPerDay = cleanDates.map(d => {
-    return allData.filter(r => r.date === d && (currentPub === 'all' || r.pub === currentPub))
-      .reduce((s,r) => s + (r.reach||0), 0);
-  });
-
-  // CPL (cost per lead = reach / leads)
-  const cplPerDay = cleanDates.map((d,i) => {
-    return leadsPerDay[i] > 0 ? Math.round(reachPerDay[i] / leadsPerDay[i]) : null;
-  });
-
-  // Leads chart
-  charts['leads'] = new Chart(document.getElementById('leadsChart'), {
-    data: { labels, datasets: [{
-      type: 'bar', label: 'Лиды', data: leadsPerDay,
-      backgroundColor: ctx => {
-        const g = ctx.chart.ctx.createLinearGradient(0,0,0,220);
-        g.addColorStop(0,'rgba(236,72,153,0.8)'); g.addColorStop(1,'rgba(236,72,153,0.2)'); return g;
-      },
-      borderColor: '#ec4899', borderWidth: 1, borderRadius: 5, borderSkipped: false,
-      _showLabels:true, _labelColor:'rgba(255,180,220,0.8)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>v
-    }]},
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      layout:{ padding:{ top:18 } },
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid:{display:false}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} },
-        y: { grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} }
-      }
-    }
-  });
-
-  // CPL chart
-  charts['cpl'] = new Chart(document.getElementById('cplChart'), {
-    data: { labels, datasets: [{
-      type: 'line', label: 'Охват / лид', data: cplPerDay,
-      borderColor: '#f59e0b',
-      backgroundColor: ctx => {
-        const g = ctx.chart.ctx.createLinearGradient(0,0,0,220);
-        g.addColorStop(0,'rgba(245,158,11,0.3)'); g.addColorStop(1,'rgba(245,158,11,0)'); return g;
-      },
-      fill: true, tension: 0.4, pointRadius: 4,
-      pointBackgroundColor: '#f59e0b', borderWidth: 2,
-      spanGaps: true,
-      _showLabels:true, _labelColor:'rgba(255,210,100,0.8)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>fmtReach(v)
-    }]},
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ` ${fmtNum(ctx.raw)} охвата/лид` } },
-        datalabels:{}
-      },
-      scales: {
-        x: { grid:{display:false}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'} },
-        y: { grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10},callback:v=>fmtReach(v)}, border:{color:'transparent'} }
-      }
-    }
-  });
+// ── Main render ──
+function render() {
+  const latest = getLatestDate(); if (!latest) return;
+  const last10 = getDatesBefore(latest,10);
+  const monthDates = getCurrentMonthDates();
+  const weekDates = getCurrentWeekDates();
+  const allDates = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
+  const latestIdx = allDates.indexOf(latest);
+  const yesterday = latest;
+  const dayBefore = latestIdx > 0 ? allDates[latestIdx-1] : null;
+  const prevMonthDates = (() => {
+    const d = parseDate(monthDates[0]); if (!d) return [];
+    d.setMonth(d.getMonth()-1);
+    return allDates.filter(ds => { const pd=parseDate(ds); return pd&&pd.getMonth()===d.getMonth()&&pd.getFullYear()===d.getFullYear(); });
+  })();
+  const prevWeekDates = (() => {
+    if (!weekDates[0]) return [];
+    const d=parseDate(weekDates[0]); d.setDate(d.getDate()-7);
+    const end=new Date(d); end.setDate(d.getDate()+6);
+    return allDates.filter(ds => { const pd=parseDate(ds); return pd&&pd>=d&&pd<=end; });
+  })();
+  const monthName = parseDate(latest)?.toLocaleDateString('ru',{month:'long',year:'numeric'})||'';
+  document.getElementById('kpi-month-label').textContent = `Текущий месяц — ${monthName} (${monthDates.length} дней)`;
+  document.getElementById('kpi-week-label').textContent = `Текущая неделя (${weekDates.length} дней)`;
+  document.getElementById('page-sub').textContent = `${allDates.length} дней · последние данные: ${latest.split('-').reverse().join('.')}`;
+  renderKpiRow('kpi-month', aggTotal(monthDates), prevMonthDates.length?aggTotal(prevMonthDates):null);
+  renderKpiRow('kpi-week', aggTotal(weekDates), prevWeekDates.length?aggTotal(prevWeekDates):null);
+  if (yesterday) { renderKpiRow('kpi-yesterday', aggTotal([yesterday]), dayBefore?aggTotal([dayBefore]):null); }
+  const ts = todayStr();
+  const last10clean = last10.filter(d=>d<ts);
+  renderReachChart(last10clean);
+  renderSubsChart(last10clean);
+  renderRankTable('rank-10', aggByPub(last10).filter(p=>currentPub==='all'||p.pub===currentPub));
+  if (yesterday) renderRankTable('rank-yesterday', aggByPub([yesterday]).filter(p=>currentPub==='all'||p.pub===currentPub));
+  renderPivot();
+  renderLeadsCharts(last10);
+  renderCompareChart();
+  renderVideos();
+  if (currentTab==='table') renderHeatmaps();
 }
 
 // ── Init ──
 async function init() {
-  if (!API_URL) {
-    allData = applyCorrections(parseBuiltinData());
-    setStatus('ok','Нет API URL');
-    buildSidebar(); render(); return;
-  }
+  if (!API_URL) { setStatus('ok','Нет API URL'); buildSidebar(); render(); return; }
   setStatus('loading','Загрузка...');
   try {
-    const res = await fetch(API_URL, {redirect:'follow',mode:'cors'});
+    const res = await fetch(API_URL,{redirect:'follow',mode:'cors'});
     const json = await res.json();
     allData = applyCorrections(json.data);
     allLeads = json.leads || [];
-    setStatus('ok','Данные из таблицы ✓ (' + allLeads.length + ' лидов)');
+    setStatus('ok','Данные из таблицы ✓ ('+allLeads.length+' лидов)');
     ['setup-banner','paste-banner'].forEach(id=>document.getElementById(id).style.display='none');
     buildSidebar(); render(); return;
   } catch(e) { console.log('fetch failed:',e); }
@@ -1079,13 +1015,12 @@ async function init() {
     const json = await loadViaJsonp(API_URL);
     allData = applyCorrections(json.data||[]);
     allLeads = json.leads || [];
-    setStatus('ok','Данные из таблицы ✓ (' + allLeads.length + ' лидов)');
+    setStatus('ok','Данные из таблицы ✓ ('+allLeads.length+' лидов)');
     ['setup-banner','paste-banner'].forEach(id=>document.getElementById(id).style.display='none');
     buildSidebar(); render(); return;
   } catch(e2) { console.log('jsonp failed:',e2); }
   setStatus('err','Нажмите "Загрузить данные"');
   document.getElementById('paste-banner').style.display='block';
-  allData = applyCorrections(parseBuiltinData());
   buildSidebar(); render();
 }
 
