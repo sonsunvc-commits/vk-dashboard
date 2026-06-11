@@ -270,15 +270,22 @@ th.col-today{color:rgba(255,255,255,.5)!important;font-style:italic}
         <div class="kpi-row" id="kpi-yesterday"></div>
       </div>
 
-      <div class="charts-row" style="margin-bottom:10px">
-        <div class="card">
-          <div class="card-title">Охват — последние 10 дней <span class="card-badge" id="reach-badge">—</span></div>
-          <div style="position:relative;width:100%;height:255px"><canvas id="reachChart"></canvas></div>
+      <!-- Охват с переключателем 20д / 90д -->
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-title">
+          Охват <span class="card-badge" id="reach-badge">—</span>
+          <div style="display:flex;gap:6px">
+            <button class="pivot-mode-btn active" id="rbtn-20" onclick="setReachMode('20')">20 дней</button>
+            <button class="pivot-mode-btn" id="rbtn-90" onclick="setReachMode('90')">90 дней</button>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-title">Прирост подписчиков — 10 дней</div>
-          <div style="position:relative;width:100%;height:255px"><canvas id="subsChart"></canvas></div>
-        </div>
+        <div style="position:relative;width:100%;height:220px"><canvas id="reachChart"></canvas></div>
+      </div>
+
+      <!-- Прирост подписчиков — 30 дней, без переключателей -->
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-title">Прирост подписчиков — 30 дней</div>
+        <div style="position:relative;width:100%;height:200px"><canvas id="subsChart"></canvas></div>
       </div>
 
       <div class="card" style="margin-bottom:10px">
@@ -292,15 +299,27 @@ th.col-today{color:rgba(255,255,255,.5)!important;font-style:italic}
         <div id="compare-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
       </div>
 
-      <div class="charts-row" style="margin-bottom:10px">
-        <div class="card">
-          <div class="card-title">Лиды по дням — последние 10 дней <span class="card-badge" id="leads-badge">—</span></div>
-          <div style="position:relative;width:100%;height:220px"><canvas id="leadsChart"></canvas></div>
+      <!-- Лиды с переключателем + охват на лида с переключателем, каждый сам по себе -->
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-title">
+          Лиды <span class="card-badge" id="leads-badge">—</span>
+          <div style="display:flex;gap:6px">
+            <button class="pivot-mode-btn active" id="lbtn-20" onclick="setLeadsMode('20')">20 дней</button>
+            <button class="pivot-mode-btn" id="lbtn-weeks" onclick="setLeadsMode('weeks')">10 недель</button>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-title">Охват на 1 лида — последние 10 дней</div>
-          <div style="position:relative;width:100%;height:220px"><canvas id="cplChart"></canvas></div>
+        <div style="position:relative;width:100%;height:200px"><canvas id="leadsChart"></canvas></div>
+      </div>
+
+      <div class="card" style="margin-bottom:10px">
+        <div class="card-title">
+          Охват на 1 лида
+          <div style="display:flex;gap:6px">
+            <button class="pivot-mode-btn active" id="cbtn-20" onclick="setCplMode('20')">20 дней</button>
+            <button class="pivot-mode-btn" id="cbtn-weeks" onclick="setCplMode('weeks')">10 недель</button>
+          </div>
         </div>
+        <div style="position:relative;width:100%;height:200px"><canvas id="cplChart"></canvas></div>
       </div>
 
       <div class="charts-row2" style="margin-bottom:10px">
@@ -429,6 +448,9 @@ let pivotMode = 'week';
 let videoMode = 'daily';
 let charts = {};
 let currentTab = 'dash';
+let reachMode = '20';   // '20' | '90'
+let leadsMode = '20';   // '20' | 'weeks'
+let cplMode   = '20';   // '20' | 'weeks'
 
 // ── Tab switching ──
 function switchTab(tab) {
@@ -577,7 +599,17 @@ function renderKpiRow(elId, curr, prev) {
 }
 
 // ── Charts ──
-function renderReachChart(dates) {
+function setReachMode(mode) {
+  reachMode = mode;
+  document.getElementById('rbtn-20').classList.toggle('active', mode==='20');
+  document.getElementById('rbtn-90').classList.toggle('active', mode==='90');
+  const latest = getLatestDate(); if (!latest) return;
+  const ts = todayStr();
+  const n = mode === '90' ? 90 : 20;
+  renderReachChart(getDatesBefore(latest, n).filter(d => d < ts), mode === '90');
+}
+
+function renderReachChart(dates, hideLabels=false) {
   destroyChart('reach');
   const labels = dates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
   const data = dates.map(date => allData.filter(r=>r.date===date&&(currentPub==='all'||r.pub===currentPub)).reduce((s,r)=>s+(r.reach||0),0));
@@ -586,12 +618,23 @@ function renderReachChart(dates) {
     data: { labels, datasets: [{
       type:'line', data, borderColor:'#7c3aed',
       backgroundColor: ctx => { const g=ctx.chart.ctx.createLinearGradient(0,0,0,170); g.addColorStop(0,'rgba(124,58,237,.35)'); g.addColorStop(1,'rgba(124,58,237,0)'); return g; },
-      fill:true, tension:.4, pointRadius:3, pointBackgroundColor:'#7c3aed', borderWidth:2,
-      _showLabels:true, _labelColor:'rgba(200,180,255,0.7)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>fmtReach(v)
+      fill:true, tension:.4,
+      pointRadius: hideLabels ? 0 : 3,
+      pointHoverRadius: 5,
+      pointBackgroundColor:'#7c3aed', borderWidth:2,
+      _showLabels: !hideLabels,
+      _labelColor:'rgba(200,180,255,0.7)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>fmtReach(v)
     }]},
-    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          mode:'index', intersect:false,
+          callbacks:{ label: ctx => ` ${fmtNum(ctx.raw)} охват` }
+        }
+      },
       scales: {
-        x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},
+        x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:hideLabels?8:10},maxTicksLimit:hideLabels?15:undefined},border:{color:'transparent'}},
         y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10},callback:v=>fmtNum(v)},border:{color:'transparent'}}
       }
     }
@@ -605,16 +648,17 @@ function renderSubsChart(dates) {
   charts['subs'] = new Chart(document.getElementById('subsChart'), {
     type:'bar',
     data: { labels, datasets: [{
-      data, borderRadius:5, borderSkipped:false,
+      data, borderRadius:4, borderSkipped:false,
       backgroundColor: ctx => { const v=ctx.raw||0; return v>=0?'rgba(34,197,94,.6)':'rgba(239,68,68,.6)'; },
       borderColor: ctx => { const v=ctx.raw||0; return v>=0?'#22c55e':'#ef4444'; },
       borderWidth:1,
-      _showLabels:true, _labelFont:'bold 9px sans-serif', _labelColor:'rgba(100,220,140,0.75)', _labelFmt:v=>v>0?'+'+fmtNum(v):fmtNum(v)
+      _showLabels:true, _labelFont:'bold 8px sans-serif', _labelColor:'rgba(100,220,140,0.75)',
+      _labelFmt:v=>v>0?'+'+fmtNum(v):fmtNum(v)
     }]},
     options: { responsive:true, maintainAspectRatio:false, layout:{padding:{top:18}},
-      plugins:{legend:{display:false}},
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.raw>=0?'+':''}${fmtNum(ctx.raw)} подп.`}}},
       scales: {
-        x:{grid:{display:false},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},
+        x:{grid:{display:false},ticks:{color:'#636880',font:{size:8},maxTicksLimit:15},border:{color:'transparent'}},
         y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10},callback:v=>fmtNum(v)},border:{color:'transparent'}}
       }
     }
@@ -669,33 +713,131 @@ function renderCompareChart() {
     </span>`).join('');
 }
 
+// ── Leads chart ──
+function setLeadsMode(mode) {
+  leadsMode = mode;
+  document.getElementById('lbtn-20').classList.toggle('active', mode==='20');
+  document.getElementById('lbtn-weeks').classList.toggle('active', mode==='weeks');
+  renderLeadsChart();
+}
+
+function setLeadsModeSilent(mode) { leadsMode = mode; }
+
+function setCplMode(mode) {
+  cplMode = mode;
+  document.getElementById('cbtn-20').classList.toggle('active', mode==='20');
+  document.getElementById('cbtn-weeks').classList.toggle('active', mode==='weeks');
+  renderCplChart();
+}
+
 function renderLeadsCharts(dates) {
-  destroyChart('leads'); destroyChart('cpl');
+  // Called from render() — just re-renders both with current modes
+  renderLeadsChart();
+  renderCplChart();
+}
+
+function getWeeklyLeadsData() {
+  // Last 10 complete weeks ending at latest date
+  const latest = getLatestDate(); if (!latest) return {labels:[], leadsPerPeriod:[], reachPerPeriod:[]};
+  const allDates = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
   const ts = todayStr();
-  const cleanDates = dates.filter(d => d < ts);
-  const labels = cleanDates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
   const filteredLeads = currentPub==='all' ? allLeads : allLeads.filter(l=>l.pub===currentPub);
-  const leadsPerDay = cleanDates.map(d => filteredLeads.filter(l=>l.date===d).length);
-  document.getElementById('leads-badge').textContent = leadsPerDay.reduce((a,b)=>a+b,0) + ' лидов';
-  const reachPerDay = cleanDates.map(d => allData.filter(r=>r.date===d&&(currentPub==='all'||r.pub===currentPub)).reduce((s,r)=>s+(r.reach||0),0));
-  const cplPerDay = cleanDates.map((d,i) => leadsPerDay[i]>0?Math.round(reachPerDay[i]/leadsPerDay[i]):null);
+
+  // Build weeks: go back 10 weeks from latest
+  const latestD = parseDate(latest);
+  const weeks = [];
+  for (let w = 9; w >= 0; w--) {
+    const sun = new Date(latestD);
+    sun.setDate(latestD.getDate() - (latestD.getDay()||7) + 7 - w*7);
+    const mon = new Date(sun); mon.setDate(sun.getDate() - 6);
+    const fmt = x => `${String(x.getDate()).padStart(2,'0')}.${String(x.getMonth()+1).padStart(2,'0')}`;
+    const label = fmt(mon)+'–'+fmt(sun);
+    // dates in this week that exist in data and are not today
+    const wDates = allDates.filter(d => {
+      const pd = parseDate(d);
+      return pd && pd >= mon && pd <= sun && d < ts;
+    });
+    const leads = filteredLeads.filter(l => wDates.includes(l.date)).length;
+    const reach = wDates.reduce((s,d) => s + allData.filter(r=>r.date===d&&(currentPub==='all'||r.pub===currentPub)).reduce((a,r)=>a+(r.reach||0),0), 0);
+    weeks.push({label, leads, reach});
+  }
+  return {
+    labels: weeks.map(w=>w.label),
+    leadsPerPeriod: weeks.map(w=>w.leads),
+    reachPerPeriod: weeks.map(w=>w.reach)
+  };
+}
+
+function renderLeadsChart() {
+  destroyChart('leads');
+  const latest = getLatestDate(); if (!latest) return;
+  const ts = todayStr();
+  const filteredLeads = currentPub==='all' ? allLeads : allLeads.filter(l=>l.pub===currentPub);
+
+  let labels, leadsData, isWeekly = leadsMode === 'weeks';
+
+  if (isWeekly) {
+    const wd = getWeeklyLeadsData();
+    labels = wd.labels;
+    leadsData = wd.leadsPerPeriod;
+  } else {
+    const dates = getDatesBefore(latest, 20).filter(d => d < ts);
+    labels = dates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+    leadsData = dates.map(d => filteredLeads.filter(l=>l.date===d).length);
+  }
+
+  const total = leadsData.reduce((a,b)=>a+b,0);
+  document.getElementById('leads-badge').textContent = total + ' лидов';
+
   charts['leads'] = new Chart(document.getElementById('leadsChart'), {
-    data:{labels, datasets:[{type:'bar',data:leadsPerDay,
-      backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,220);g.addColorStop(0,'rgba(236,72,153,0.8)');g.addColorStop(1,'rgba(236,72,153,0.2)');return g;},
-      borderColor:'#ec4899',borderWidth:1,borderRadius:5,borderSkipped:false,
-      _showLabels:true,_labelColor:'rgba(255,180,220,0.8)',_labelFont:'bold 9px sans-serif',_labelFmt:v=>v
+    data:{labels, datasets:[{type:'bar', data:leadsData,
+      backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,200);g.addColorStop(0,'rgba(236,72,153,0.8)');g.addColorStop(1,'rgba(236,72,153,0.2)');return g;},
+      borderColor:'#ec4899', borderWidth:1, borderRadius:5, borderSkipped:false,
+      _showLabels:true, _labelColor:'rgba(255,180,220,0.8)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>v||''
     }]},
-    options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:18}},plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}}}}
+    options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:18}},
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false}, ticks:{color:'#636880',font:{size:isWeekly?8:10},maxRotation:isWeekly?35:0}, border:{color:'transparent'}},
+        y:{grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10}}, border:{color:'transparent'}}
+      }
+    }
   });
+}
+
+function renderCplChart() {
+  destroyChart('cpl');
+  const latest = getLatestDate(); if (!latest) return;
+  const ts = todayStr();
+  const filteredLeads = currentPub==='all' ? allLeads : allLeads.filter(l=>l.pub===currentPub);
+
+  let labels, cplData, isWeekly = cplMode === 'weeks';
+
+  if (isWeekly) {
+    const wd = getWeeklyLeadsData();
+    labels = wd.labels;
+    cplData = wd.leadsPerPeriod.map((leads, i) => leads > 0 ? Math.round(wd.reachPerPeriod[i] / leads) : null);
+  } else {
+    const dates = getDatesBefore(latest, 20).filter(d => d < ts);
+    labels = dates.map(d => { const p=d.split('-'); return `${p[2]}.${p[1]}`; });
+    const leadsPerDay = dates.map(d => filteredLeads.filter(l=>l.date===d).length);
+    const reachPerDay = dates.map(d => allData.filter(r=>r.date===d&&(currentPub==='all'||r.pub===currentPub)).reduce((s,r)=>s+(r.reach||0),0));
+    cplData = dates.map((_,i) => leadsPerDay[i] > 0 ? Math.round(reachPerDay[i] / leadsPerDay[i]) : null);
+  }
+
   charts['cpl'] = new Chart(document.getElementById('cplChart'), {
-    data:{labels,datasets:[{type:'line',data:cplPerDay,borderColor:'#f59e0b',
-      backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,220);g.addColorStop(0,'rgba(245,158,11,0.3)');g.addColorStop(1,'rgba(245,158,11,0)');return g;},
-      fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#f59e0b',borderWidth:2,spanGaps:true,
-      _showLabels:true,_labelColor:'rgba(255,210,100,0.8)',_labelFont:'bold 9px sans-serif',_labelFmt:v=>fmtReach(v)
+    data:{labels, datasets:[{type:'line', data:cplData, borderColor:'#f59e0b',
+      backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,200);g.addColorStop(0,'rgba(245,158,11,0.3)');g.addColorStop(1,'rgba(245,158,11,0)');return g;},
+      fill:true, tension:.4, pointRadius:4, pointBackgroundColor:'#f59e0b', borderWidth:2, spanGaps:true,
+      _showLabels:true, _labelColor:'rgba(255,210,100,0.8)', _labelFont:'bold 9px sans-serif', _labelFmt:v=>fmtReach(v)
     }]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmtNum(ctx.raw)} охвата/лид`}}},
-      scales:{x:{grid:{display:false},ticks:{color:'#636880',font:{size:10}},border:{color:'transparent'}},y:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#636880',font:{size:10},callback:v=>fmtReach(v)},border:{color:'transparent'}}}}
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${fmtNum(ctx.raw)} охвата/лид`}}},
+      scales:{
+        x:{grid:{display:false}, ticks:{color:'#636880',font:{size:isWeekly?8:10},maxRotation:isWeekly?35:0}, border:{color:'transparent'}},
+        y:{grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:'#636880',font:{size:10},callback:v=>fmtReach(v)}, border:{color:'transparent'}}
+      }
+    }
   });
 }
 
@@ -1161,7 +1303,6 @@ function loadFromPaste() {
 // ── Main render ──
 function render() {
   const latest = getLatestDate(); if (!latest) return;
-  const last10 = getDatesBefore(latest,10);
   const monthDates = getCurrentMonthDates();
   const weekDates = getCurrentWeekDates();
   const allDates = [...new Set(allData.map(r=>r.date))].filter(Boolean).sort();
@@ -1187,13 +1328,16 @@ function render() {
   renderKpiRow('kpi-week', aggTotal(weekDates), prevWeekDates.length?aggTotal(prevWeekDates):null);
   if (yesterday) { renderKpiRow('kpi-yesterday', aggTotal([yesterday]), dayBefore?aggTotal([dayBefore]):null); }
   const ts = todayStr();
-  const last10clean = last10.filter(d=>d<ts);
-  renderReachChart(last10clean);
-  renderSubsChart(last10clean);
-  renderRankTable('rank-10', aggByPub(last10).filter(p=>currentPub==='all'||p.pub===currentPub));
+  const last20clean = getDatesBefore(latest, 20).filter(d=>d<ts);
+  const last30clean = getDatesBefore(latest, 30).filter(d=>d<ts);
+  const last90clean = getDatesBefore(latest, 90).filter(d=>d<ts);
+  const reachDates = reachMode === '90' ? last90clean : last20clean;
+  renderReachChart(reachDates, reachMode === '90');
+  renderSubsChart(last30clean);
+  renderRankTable('rank-10', aggByPub(getDatesBefore(latest,10)).filter(p=>currentPub==='all'||p.pub===currentPub));
   if (yesterday) renderRankTable('rank-yesterday', aggByPub([yesterday]).filter(p=>currentPub==='all'||p.pub===currentPub));
   renderPivot();
-  renderLeadsCharts(last10);
+  renderLeadsCharts();
   renderCompareChart();
   renderVideos();
   if (currentTab==='table') renderHeatmaps();
